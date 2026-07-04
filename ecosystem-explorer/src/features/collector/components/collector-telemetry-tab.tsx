@@ -90,7 +90,6 @@ export function CollectorTelemetryTab({
     <div className="space-y-6">
       <SectionDivider className="mb-0">{t("detail.telemetryTab.metricsHeader")}</SectionDivider>
 
-      {/* Expand / Collapse toggle */}
       <div className="mt-4 flex justify-center">
         <div className="border-border/50 bg-muted/80 inline-flex items-center rounded-xl border p-1 shadow-sm backdrop-blur-sm">
           <button
@@ -122,7 +121,6 @@ export function CollectorTelemetryTab({
         </div>
       </div>
 
-      {/* Metric cards */}
       <div className="mx-auto max-w-3xl space-y-4">
         {metricEntries.map(([metricName, metric]) => {
           const isExpanded = expandedMetrics.has(metricName);
@@ -142,7 +140,6 @@ export function CollectorTelemetryTab({
                   : "border-border/40 bg-surface-card hover:border-border/60 shadow-sm"
               }`}
             >
-              {/* Card header — always visible */}
               <button
                 type="button"
                 onClick={() => toggleMetric(metricName)}
@@ -187,23 +184,19 @@ export function CollectorTelemetryTab({
                 </div>
               </button>
 
-              {/* Expanded content */}
               {isExpanded && (
                 <div className="border-border/20 border-t p-4 pt-6 sm:p-6 sm:pt-8">
                   <div className="space-y-6">
-                    {/* Description */}
                     <p className="text-foreground/80 text-base leading-relaxed">
                       {metric.description}
                     </p>
 
-                    {/* Extended documentation */}
                     {metric.extended_documentation && (
                       <p className="text-muted-foreground text-sm leading-relaxed">
                         {metric.extended_documentation}
                       </p>
                     )}
 
-                    {/* Unit */}
                     <div className="border-border/30 flex items-center gap-3 border-b pb-6">
                       <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
                         {t("detail.telemetryTab.unit")}
@@ -213,7 +206,6 @@ export function CollectorTelemetryTab({
                       </code>
                     </div>
 
-                    {/* Aggregation info for sum */}
                     {metric.sum && (
                       <div className="space-y-2">
                         <h4 className="text-muted-foreground text-xs font-black tracking-[0.2em] uppercase">
@@ -233,7 +225,6 @@ export function CollectorTelemetryTab({
                       </div>
                     )}
 
-                    {/* Aggregation info for histogram */}
                     {metric.histogram && metric.histogram.bucket_boundaries && (
                       <div className="space-y-2">
                         <h4 className="text-muted-foreground text-xs font-black tracking-[0.2em] uppercase">
@@ -245,7 +236,6 @@ export function CollectorTelemetryTab({
                       </div>
                     )}
 
-                    {/* Attributes table */}
                     {resolvedAttributes.length > 0 && (
                       <div className="space-y-4">
                         <h4 className="text-muted-foreground text-xs font-black tracking-[0.2em] uppercase">

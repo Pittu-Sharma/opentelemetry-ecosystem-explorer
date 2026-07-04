@@ -376,7 +376,6 @@ export function CollectorDetailPage() {
                     </div>
                   )}
 
-                  {/* Distribution Information */}
                   {component.status.distributions && component.status.distributions.length > 0 ? (
                     <div className="space-y-6">
                       <div>
