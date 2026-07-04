@@ -63,11 +63,11 @@ export interface CollectorComponent {
   /** Detailed status including codeowners and signal stability. */
   status?: ComponentStatus;
   /** Telemetry metrics emitted by this component. Keyed by metric name. */
-  metrics?: Record<string, CollectorMetric>;
+  metrics?: { [key: string]: CollectorMetric };
   /** Attribute definitions referenced by metrics. Keyed by attribute name. */
-  attributes?: Record<string, CollectorAttribute>;
+  attributes?: { [key: string]: CollectorAttribute };
   /** Resource attributes associated with the component. Keyed by attribute name. */
-  resource_attributes?: Record<string, CollectorAttribute>;
+  resource_attributes?: { [key: string]: CollectorAttribute };
 }
 
 /**
