@@ -67,7 +67,8 @@
     },
     "tabs": {
       "details": "Detalles",
-      "stability": "Estabilidad"
+      "stability": "Estabilidad",
+      "telemetry": "Telemetría"
     },
     "sections": {
       "componentInfo": "Información del componente",
@@ -128,6 +129,28 @@
         "desc": "Una distribución especializada de OpenTelemetry."
       }
     },
-    "noStability": "No hay información de estabilidad disponible para esta versión."
+    "noStability": "No hay información de estabilidad disponible para esta versión.",
+    "telemetryTab": {
+      "metricsHeader": "Métricas",
+      "expandAll": "Expandir todo",
+      "collapseAll": "Contraer todo",
+      "unit": "Unidad",
+      "attributes": "Atributos",
+      "aggregation": "Agregación",
+      "monotonic": "Monotónico",
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado (opt-in)",
+      "empty": "No hay métricas de telemetría definidas para este componente.",
+      "metricType": {
+        "sum": "Suma",
+        "gauge": "Indicador",
+        "histogram": "Histograma"
+      },
+      "table": {
+        "key": "Clave",
+        "type": "Tipo",
+        "description": "Descripción"
+      }
+    }
   }
 }
