@@ -145,6 +145,11 @@
         "sum": "Sum",
         "gauge": "Gauge",
         "histogram": "Histogram"
+      },
+      "table": {
+        "key": "Key",
+        "type": "Type",
+        "description": "Description"
       }
     }
   }
