@@ -63,6 +63,13 @@ export function CollectorTelemetryTab({
     () => new Set(metricEntries.map(([name]) => name))
   );
 
+  // Synchronize expanded state when metrics prop changes without using useEffect
+  const [prevMetrics, setPrevMetrics] = useState(metrics);
+  if (metrics !== prevMetrics) {
+    setPrevMetrics(metrics);
+    setExpandedMetrics(new Set(metricEntries.map(([name]) => name)));
+  }
+
   const expandAll = () => setExpandedMetrics(new Set(metricEntries.map(([name]) => name)));
   const collapseAll = () => setExpandedMetrics(new Set());
 
