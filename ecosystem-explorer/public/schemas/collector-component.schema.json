@@ -113,6 +113,21 @@
       },
       "propertyOrder": ["class", "stability", "distributions", "codeowners"],
       "required": ["class", "distributions", "stability"]
+    },
+    "metrics": {
+      "description": "Telemetry metrics emitted by this component. Keyed by metric name.",
+      "type": "object",
+      "propertyOrder": []
+    },
+    "attributes": {
+      "description": "Attribute definitions referenced by metrics. Keyed by attribute name.",
+      "type": "object",
+      "propertyOrder": []
+    },
+    "resource_attributes": {
+      "description": "Resource attributes associated with the component. Keyed by attribute name.",
+      "type": "object",
+      "propertyOrder": []
     }
   },
   "propertyOrder": [
@@ -124,7 +139,10 @@
     "display_name",
     "description",
     "repository",
-    "status"
+    "status",
+    "metrics",
+    "attributes",
+    "resource_attributes"
   ],
   "required": ["distribution", "ecosystem", "id", "name", "type"],
   "$schema": "https://json-schema.org/draft-07/schema#"
