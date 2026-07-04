@@ -104,27 +104,18 @@ export function LegacyApp() {
                 element={<LegacyNameVersionRedirect />}
               />
               <Route path="/java-agent/configuration" element={<JavaConfigurationListPage />} />
-              {isEnabled("JAVA_RELEASE_COMPARISON") && (
-                <Route path="/java-agent/releases" element={<JavaReleaseComparisonPage />} />
-              )}
+              <Route path="/java-agent/releases" element={<JavaReleaseComparisonPage />} />
               <Route
                 path="/java-agent/configuration/builder"
                 element={<ConfigurationBuilderPage />}
               />
               <Route path="/collector" element={<CollectorPage />} />
-              {isEnabled("COLLECTOR_PAGE") && (
-                <>
-                  <Route path="/collector/components" element={<CollectorComponentsPage />} />
-                  <Route
-                    path="/collector/components/:version"
-                    element={<CollectorComponentsPage />}
-                  />
-                  <Route
-                    path="/collector/components/:distribution/:name"
-                    element={<CollectorDetailPage />}
-                  />
-                </>
-              )}
+              <Route path="/collector/components" element={<CollectorComponentsPage />} />
+              <Route path="/collector/components/:version" element={<CollectorComponentsPage />} />
+              <Route
+                path="/collector/components/:distribution/:name"
+                element={<CollectorDetailPage />}
+              />
               <Route path="/about" element={<AboutPage />} />
               {isEnabled("DEV_SHOWCASE") && (
                 <Route path="/_dev/components" element={<DevComponentsPage />} />
