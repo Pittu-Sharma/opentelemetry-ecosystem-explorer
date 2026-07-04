@@ -102,7 +102,7 @@
     "tabs": {
       "details": "Detalles",
       "stability": "Estabilidad",
-      "telemetry": "Telemetry"
+      "telemetry": "Telemetría"
     },
     "sections": {
       "componentInfo": "Información del componente",
@@ -165,20 +165,20 @@
     },
     "noStability": "No hay información de estabilidad disponible para esta versión.",
     "telemetryTab": {
-      "metricsHeader": "Metrics",
-      "expandAll": "Expand All",
-      "collapseAll": "Collapse All",
-      "unit": "Unit",
-      "attributes": "Attributes",
-      "aggregation": "Aggregation",
-      "monotonic": "Monotonic",
-      "enabled": "Enabled",
-      "disabled": "Disabled (opt-in)",
-      "empty": "No telemetry metrics are defined for this component.",
+      "metricsHeader": "Métricas",
+      "expandAll": "Expandir todo",
+      "collapseAll": "Contraer todo",
+      "unit": "Unidad",
+      "attributes": "Atributos",
+      "aggregation": "Agregación",
+      "monotonic": "Monotónico",
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado (opt-in)",
+      "empty": "No hay métricas de telemetría definidas para este componente.",
       "metricType": {
-        "sum": "Sum",
-        "gauge": "Gauge",
-        "histogram": "Histogram"
+        "sum": "Suma",
+        "gauge": "Indicador",
+        "histogram": "Histograma"
       },
       "table": {
         "key": "Clave",
