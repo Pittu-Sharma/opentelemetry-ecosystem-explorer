@@ -186,5 +186,65 @@
         "description": "Description"
       }
     }
+  },
+  "explore": {
+    "componentTypes": {
+      "heading": "Component Types",
+      "latestVersion": "Latest data version",
+      "types": {
+        "receiver": {
+          "label": "Receiver",
+          "description": "Collect telemetry data from various sources including OTLP, Prometheus, Jaeger, and many others"
+        },
+        "processor": {
+          "label": "Processor",
+          "description": "Transform, filter, batch, and enrich telemetry data before export"
+        },
+        "exporter": {
+          "label": "Exporter",
+          "description": "Send telemetry data to observability backends and storage systems"
+        },
+        "extension": {
+          "label": "Extension",
+          "description": "Provide additional capabilities like health checks, profiling, and authentication"
+        },
+        "connector": {
+          "label": "Connector",
+          "description": "Connect multiple pipelines and enable data flow between signal types"
+        }
+      }
+    },
+    "distributions": {
+      "heading": "Distributions",
+      "componentCount_one": "{{formattedCount}} component",
+      "componentCount_other": "{{formattedCount}} components",
+      "items": {
+        "core": {
+          "description": "Officially maintained components with stable APIs. Minimal dependencies, production-ready.",
+          "button": "View Core Components"
+        },
+        "contrib": {
+          "description": "Community-contributed components. May have varying stability levels. Broader ecosystem coverage.",
+          "button": "View Contrib Components"
+        }
+      }
+    },
+    "summary": {
+      "ariaLabel": "Collector summary statistics",
+      "components": "Components",
+      "types": "Types"
+    },
+    "resources": {
+      "heading": "Resources",
+      "items": {
+        "officialDocs": "Official Documentation",
+        "gettingStarted": "Getting Started Guide",
+        "configReference": "Configuration Reference",
+        "githubCore": "GitHub (Core)",
+        "githubContrib": "GitHub (Contrib)"
+      }
+    },
+    "loading": "Loading Collector ecosystem data...",
+    "error": "Error loading Collector data"
   }
 }
