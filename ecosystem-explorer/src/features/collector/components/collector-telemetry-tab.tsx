@@ -269,19 +269,19 @@ export function CollectorTelemetryTab({
                                   scope="col"
                                   className="text-muted-foreground p-2 text-left text-[10px] font-bold tracking-widest uppercase sm:p-3"
                                 >
-                                  Key
+                                  {t("detail.telemetryTab.table.key")}
                                 </th>
                                 <th
                                   scope="col"
                                   className="text-muted-foreground p-2 text-left text-[10px] font-bold tracking-widest uppercase sm:p-3"
                                 >
-                                  Type
+                                  {t("detail.telemetryTab.table.type")}
                                 </th>
                                 <th
                                   scope="col"
                                   className="text-muted-foreground p-2 text-left text-[10px] font-bold tracking-widest uppercase sm:p-3"
                                 >
-                                  Description
+                                  {t("detail.telemetryTab.table.description")}
                                 </th>
                               </tr>
                             </thead>
