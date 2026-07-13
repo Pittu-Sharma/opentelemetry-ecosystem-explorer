@@ -1,6 +1,9 @@
 name: Build Explorer Database
 
 on:
+  schedule:
+    # Nightly incremental build of all ecosystems at 06:00 UTC.
+    - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       build_mode:
@@ -26,9 +29,12 @@ permissions:
   contents: read # Default minimum; the build-database job declares its own elevated scopes
 
 concurrency:
-  # Serialize per ecosystem since each one targets its own
-  # otelbot/automated-explorer-database-update-<ecosystem> branch.
-  group: ${{ github.workflow }}-${{ inputs.ecosystem }}
+  # Serialize every run of this workflow. A scheduled `all` build and a manual
+  # single-ecosystem build both write to ecosystem-explorer/public/data/ and bump
+  # DB_VERSION, so running them concurrently could produce overlapping automated
+  # PRs and merge conflicts. cancel-in-progress stays false so queued runs wait
+  # rather than being dropped.
+  group: ${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
@@ -100,9 +106,11 @@ jobs:
         run: uv sync --locked
 
       - name: Build explorer database (incremental)
-        if: inputs.build_mode == 'incremental'
+        # Scheduled runs don't set dispatch inputs, so `inputs.build_mode` is
+        # empty; default to an incremental build in that case.
+        if: ${{ (inputs.build_mode || 'incremental') == 'incremental' }}
         env:
-          ECOSYSTEM: ${{ inputs.ecosystem }}
+          ECOSYSTEM: ${{ inputs.ecosystem || 'all' }}
         run: uv run explorer-db-builder --ecosystem "$ECOSYSTEM"
 
       - name: Build explorer database (clean)
@@ -144,9 +152,11 @@ jobs:
           GH_TOKEN:
             ${{ steps.repo_check.outputs.is_primary == 'true' && steps.otelbot-token.outputs.token
             || secrets.GITHUB_TOKEN }}
-          ECOSYSTEM: ${{ inputs.ecosystem }}
-          BUILD_MODE: ${{ inputs.build_mode }}
-          ACTOR: ${{ github.actor }}
+          ECOSYSTEM: ${{ inputs.ecosystem || 'all' }}
+          BUILD_MODE: ${{ inputs.build_mode || 'incremental' }}
+          # On scheduled runs github.actor doesn't reflect a human who triggered
+          # the build, so attribute those runs to the schedule instead.
+          ACTOR: ${{ github.event_name == 'schedule' && 'nightly schedule' || github.actor }}
         run: |
           BRANCH="otelbot/automated-explorer-database-update-${ECOSYSTEM}"
 
@@ -158,7 +168,7 @@ jobs:
 
           PR_TITLE="[automated] Update explorer database (${ECOSYSTEM})"
           PR_BODY="$(cat <<EOF
-          Automated database build requested via workflow dispatch.
+          Automated database build.
 
           Build mode: ${BUILD_MODE}
           Ecosystem: ${ECOSYSTEM}
