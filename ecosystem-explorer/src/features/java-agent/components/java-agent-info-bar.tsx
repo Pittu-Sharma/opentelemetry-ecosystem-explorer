@@ -21,7 +21,9 @@ import { useJavaAgentSummary } from "../hooks/use-java-agent-summary";
 
 export function JavaAgentInfoBar() {
   const { t, i18n } = useTranslation("java-agent");
-  const { latestVersion, instrumentationCount, loading, error } = useJavaAgentSummary();
+  const { data, loading, error } = useJavaAgentSummary();
+  const latestVersion = data?.latestVersion ?? null;
+  const instrumentationCount = data?.instrumentationCount ?? null;
 
   const numberFormatter = useMemo(
     () => new Intl.NumberFormat(i18n.resolvedLanguage || i18n.language),

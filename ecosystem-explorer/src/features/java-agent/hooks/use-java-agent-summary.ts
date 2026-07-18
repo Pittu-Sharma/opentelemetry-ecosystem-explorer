@@ -16,18 +16,16 @@
 
 import { useState, useEffect } from "react";
 import * as javaagentData from "@/lib/api/javaagent-data";
+import type { DataState } from "@/hooks/data-state";
 
 export interface JavaAgentSummary {
-  latestVersion: string | null;
-  instrumentationCount: number | null;
-  loading: boolean;
-  error: Error | null;
+  latestVersion: string;
+  instrumentationCount: number;
 }
 
-export function useJavaAgentSummary(): JavaAgentSummary {
-  const [state, setState] = useState<JavaAgentSummary>({
-    latestVersion: null,
-    instrumentationCount: null,
+export function useJavaAgentSummary(): DataState<JavaAgentSummary> {
+  const [state, setState] = useState<DataState<JavaAgentSummary>>({
+    data: null,
     loading: true,
     error: null,
   });
@@ -52,16 +50,17 @@ export function useJavaAgentSummary(): JavaAgentSummary {
         if (cancelled) return;
 
         setState({
-          latestVersion,
-          instrumentationCount: instrumentations.length,
+          data: {
+            latestVersion,
+            instrumentationCount: instrumentations.length,
+          },
           loading: false,
           error: null,
         });
       } catch (error) {
         if (!cancelled) {
           setState({
-            latestVersion: null,
-            instrumentationCount: null,
+            data: null,
             loading: false,
             error: error instanceof Error ? error : new Error(String(error)),
           });

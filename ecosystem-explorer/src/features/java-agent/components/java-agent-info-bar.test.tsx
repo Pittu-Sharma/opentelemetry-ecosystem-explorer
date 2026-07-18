@@ -30,8 +30,7 @@ beforeEach(() => {
 describe("JavaAgentInfoBar", () => {
   it("renders loading skeletons when summary is loading", () => {
     vi.mocked(useJavaAgentSummary).mockReturnValue({
-      latestVersion: null,
-      instrumentationCount: null,
+      data: null,
       loading: true,
       error: null,
     });
@@ -45,8 +44,10 @@ describe("JavaAgentInfoBar", () => {
 
   it("renders stats correctly when loaded successfully", () => {
     vi.mocked(useJavaAgentSummary).mockReturnValue({
-      latestVersion: "1.32.0",
-      instrumentationCount: 247,
+      data: {
+        latestVersion: "1.32.0",
+        instrumentationCount: 247,
+      },
       loading: false,
       error: null,
     });
@@ -61,8 +62,7 @@ describe("JavaAgentInfoBar", () => {
 
   it("renders error alert when loading fails", () => {
     vi.mocked(useJavaAgentSummary).mockReturnValue({
-      latestVersion: null,
-      instrumentationCount: null,
+      data: null,
       loading: false,
       error: new Error("Network fetch failed"),
     });

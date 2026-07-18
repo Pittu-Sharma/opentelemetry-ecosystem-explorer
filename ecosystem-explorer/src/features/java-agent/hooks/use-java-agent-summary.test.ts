@@ -36,8 +36,7 @@ describe("useJavaAgentSummary", () => {
     const { result } = renderHook(() => useJavaAgentSummary());
 
     expect(result.current.loading).toBe(true);
-    expect(result.current.latestVersion).toBeNull();
-    expect(result.current.instrumentationCount).toBeNull();
+    expect(result.current.data).toBeNull();
     expect(result.current.error).toBeNull();
   });
 
@@ -71,8 +70,8 @@ describe("useJavaAgentSummary", () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.latestVersion).toBe("1.3.0");
-    expect(result.current.instrumentationCount).toBe(2);
+    expect(result.current.data?.latestVersion).toBe("1.3.0");
+    expect(result.current.data?.instrumentationCount).toBe(2);
     expect(result.current.error).toBeNull();
     expect(javaagentData.loadAllInstrumentations).toHaveBeenCalledWith("1.3.0");
   });
@@ -92,8 +91,8 @@ describe("useJavaAgentSummary", () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.latestVersion).toBe("1.2.0");
-    expect(result.current.instrumentationCount).toBe(0);
+    expect(result.current.data?.latestVersion).toBe("1.2.0");
+    expect(result.current.data?.instrumentationCount).toBe(0);
     expect(result.current.error).toBeNull();
     expect(javaagentData.loadAllInstrumentations).toHaveBeenCalledWith("1.2.0");
   });
@@ -108,8 +107,7 @@ describe("useJavaAgentSummary", () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.latestVersion).toBeNull();
-    expect(result.current.instrumentationCount).toBeNull();
+    expect(result.current.data).toBeNull();
     expect(result.current.error).toEqual(testError);
   });
 
@@ -126,8 +124,7 @@ describe("useJavaAgentSummary", () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.latestVersion).toBeNull();
-    expect(result.current.instrumentationCount).toBeNull();
+    expect(result.current.data).toBeNull();
     expect(result.current.error).toEqual(testError);
   });
 });
