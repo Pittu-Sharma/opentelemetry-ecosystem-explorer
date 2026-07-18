@@ -58,6 +58,12 @@
     }
   },
   "explore": {
+    "infoBar": {
+      "instrumentationCount_one": "Instrumentación disponible",
+      "instrumentationCount_other": "Instrumentaciones disponibles",
+      "latestRelease": "Última versión publicada",
+      "error": "Error al cargar estadísticas: {{message}}"
+    },
     "resources": {
       "heading": "Recursos y documentación",
       "items": {

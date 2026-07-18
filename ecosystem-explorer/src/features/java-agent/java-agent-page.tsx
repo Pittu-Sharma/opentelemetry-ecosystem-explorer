@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import { AgentExploreLanding } from "@/features/java-agent/components/agent-explore-landing.tsx";
+import { JavaAgentInfoBar } from "@/features/java-agent/components/java-agent-info-bar.tsx";
 import { BackButton } from "@/components/ui/back-button";
 import { PageContainer } from "@/components/layout/page-container";
 import { useTranslation } from "react-i18next";
@@ -30,6 +31,7 @@ export function JavaAgentPage() {
           </h1>
           <p className="text-muted-foreground">{t("page.description")}</p>
         </div>
+        <JavaAgentInfoBar />
         <AgentExploreLanding />
       </div>
     </PageContainer>

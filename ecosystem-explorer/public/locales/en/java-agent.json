@@ -58,6 +58,12 @@
     }
   },
   "explore": {
+    "infoBar": {
+      "instrumentationCount_one": "Available instrumentation",
+      "instrumentationCount_other": "Available instrumentations",
+      "latestRelease": "Latest release version",
+      "error": "Failed to load summary stats: {{message}}"
+    },
     "resources": {
       "heading": "Resources & Documentation",
       "items": {
