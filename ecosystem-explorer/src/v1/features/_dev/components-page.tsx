@@ -34,8 +34,19 @@ import { StabilityBadge } from "@/components/ui/stability-badge";
 import { TYPE_STRIPE_COLORS } from "@/components/ui/type-stripe-colors";
 import { type Stability, StatusPill } from "@/components/ui/status-pill";
 import { ReleaseCard } from "@/v1/components/ecosystem/release-card";
+import {
+  ActiveFilterChips,
+  DensityToggle,
+  EmptyState,
+  FacetDrawerToggle,
+  Pagination,
+  SortDropdown,
+} from "@/v1/components/list/controls";
+import { CardView, CompactList, TableView, type ListRow } from "@/v1/components/list/views";
+import { DEFAULT_FILTERS, activeFilterCount, type ListFilters } from "@/v1/lib/list-filters";
 import { type PipelineStage, PipelineAnatomy } from "@/v1/components/ecosystem/pipeline-anatomy";
 import { QuickEntryRow } from "@/v1/components/ecosystem/quick-entry-row";
+import { FacetPanel } from "@/v1/components/list/facet-panel";
 import { CheckboxFacet, SearchFacet, SelectFacet } from "@/v1/components/list/facets";
 import { CoverBlock } from "@/v1/components/home/cover-block";
 import { EcosystemsGrid } from "@/v1/components/home/ecosystems-grid";
@@ -131,6 +142,68 @@ const CATEGORY_STAGES: PipelineStage[] = [
   },
 ];
 
+// Shared rows fixture for the three list-page density views. Types cover all
+// five TYPE_STRIPE_COLORS accents (resolved inside the views), stabilities
+// exercise the StatusPill variants, and the extension row has no description
+// or signals so the empty fallbacks render.
+const LIST_ROWS: ListRow[] = [
+  {
+    id: "otlp-receiver",
+    name: "otlpreceiver",
+    displayName: "OTLP Receiver",
+    type: "receiver",
+    distribution: "core",
+    description: "Receives telemetry via gRPC or HTTP in OTLP format.",
+    stability: "stable",
+    signals: ["traces", "metrics", "logs"],
+    href: "/collector/components?q=otlpreceiver",
+  },
+  {
+    id: "batch-processor",
+    name: "batchprocessor",
+    displayName: "Batch Processor",
+    type: "processor",
+    distribution: "core",
+    description: "Batches telemetry before export to reduce outgoing connections.",
+    stability: "beta",
+    signals: ["traces", "metrics", "logs"],
+    href: "/collector/components?q=batchprocessor",
+  },
+  {
+    id: "kafka-exporter",
+    name: "kafkaexporter",
+    displayName: "Kafka Exporter",
+    type: "exporter",
+    distribution: "contrib",
+    description: "Exports telemetry to Apache Kafka topics.",
+    stability: "alpha",
+    signals: ["traces", "metrics"],
+    href: "/collector/components?q=kafkaexporter",
+  },
+  {
+    id: "count-connector",
+    name: "countconnector",
+    displayName: "Count Connector",
+    type: "connector",
+    distribution: "contrib",
+    description: "Counts spans, data points, and log records into metrics.",
+    stability: "development",
+    signals: ["metrics"],
+    href: "/collector/components?q=countconnector",
+  },
+  {
+    id: "health-check-extension",
+    name: "healthcheckextension",
+    displayName: "Health Check",
+    type: "extension",
+    distribution: "core",
+    description: null,
+    stability: "deprecated",
+    signals: [],
+    href: "/collector/components?q=healthcheckextension",
+  },
+];
+
 const GLOW_VARIANTS = [
   "accent",
   "secondary",
@@ -170,6 +243,37 @@ function Section({
         </div>
       )}
     </section>
+  );
+}
+
+// Interactive list-controls demo: the controls are stateless dispatchers on
+// the real list page (the URL owns the state), so the showcase supplies a
+// local `ListFilters` object for them to act on.
+function ListControlsShowcase() {
+  const [filters, setFilters] = useState<ListFilters>({
+    ...DEFAULT_FILTERS,
+    types: ["receiver", "processor"],
+    signals: ["traces"],
+    q: "kafka",
+    page: 2,
+  });
+  const onChange = (next: Partial<ListFilters>) => setFilters((prev) => ({ ...prev, ...next }));
+
+  return (
+    <div className="space-y-4">
+      {/* Mobile-only by design: hidden at >=992px, where the facet rail is visible. */}
+      <FacetDrawerToggle filters={filters} onClick={() => {}} />
+      <ActiveFilterChips filters={filters} onChange={onChange} />
+      <div className="flex flex-wrap items-center gap-3">
+        <DensityToggle value={filters.density} onChange={(density) => onChange({ density })} />
+        <SortDropdown value={filters.sort} onChange={(sort) => onChange({ sort })} />
+      </div>
+      <Pagination page={filters.page} totalPages={5} onChange={(page) => onChange({ page })} />
+      <EmptyState
+        hasActiveFilters={activeFilterCount(filters) > 0}
+        onClearAll={() => setFilters(DEFAULT_FILTERS)}
+      />
+    </div>
   );
 }
 
@@ -239,6 +343,32 @@ function FacetShowcase() {
           { value: "v0.149.0", label: "v0.149.0" },
           { value: "v0.148.0", label: "v0.148.0" },
         ]}
+      />
+    </div>
+  );
+}
+
+// FacetPanel is controlled by the list page's URL state in production; the
+// showcase holds a local ListFilters object and merges partial updates the
+// same way the page will.
+function FacetPanelShowcase() {
+  const [filters, setFilters] = useState<ListFilters>({
+    ...DEFAULT_FILTERS,
+    types: ["receiver"],
+    signals: ["traces"],
+  });
+
+  return (
+    <div className="max-w-xs">
+      <FacetPanel
+        filters={filters}
+        onChange={(next) => setFilters((current) => ({ ...current, ...next }))}
+        versions={["v0.150.0", "v0.149.0", "v0.148.0"]}
+        counts={{
+          types: { receiver: 98, processor: 28, exporter: 64, connector: 12, extension: 21 },
+          signals: { traces: 112, metrics: 96, logs: 74, baggage: 8 },
+          distributions: { core: 41, contrib: 182 },
+        }}
       />
     </div>
   );
@@ -438,12 +568,40 @@ export function DevComponentsPage() {
         />
       </Section>
 
+      <Section id="list-compact" title="CompactList (list page — compact density view)" bare>
+        <CompactList rows={LIST_ROWS} />
+      </Section>
+
+      <Section id="list-cards" title="CardView (list page — cards density view)" bare>
+        <CardView rows={LIST_ROWS} />
+      </Section>
+
+      <Section id="list-table" title="TableView (list page — table density view)" bare>
+        <TableView rows={LIST_ROWS} />
+      </Section>
+
       <Section
         id="facets"
         title="Facets (CheckboxFacet with counts + swatches, SearchFacet, SelectFacet)"
         bare
       >
         <FacetShowcase />
+      </Section>
+
+      <Section
+        id="facet-panel"
+        title="FacetPanel (composed facet rail with counts + version select)"
+        bare
+      >
+        <FacetPanelShowcase />
+      </Section>
+
+      <Section
+        id="list-controls"
+        title="List controls (chips, density toggle, sort, pagination, empty state)"
+        bare
+      >
+        <ListControlsShowcase />
       </Section>
 
       <Section

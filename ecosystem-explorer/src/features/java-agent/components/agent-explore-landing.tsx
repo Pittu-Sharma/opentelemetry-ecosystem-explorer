@@ -27,7 +27,7 @@ const RESOURCES = [
   },
   {
     key: "configReference",
-    href: "https://opentelemetry.io/docs/zero-code/java/agent-config/",
+    href: "https://opentelemetry.io/docs/zero-code/java/agent/configuration/",
   },
   {
     key: "githubRepo",

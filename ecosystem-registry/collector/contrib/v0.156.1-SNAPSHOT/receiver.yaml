@@ -2,7 +2,7 @@ distribution: contrib
 version: 0.156.1-SNAPSHOT
 repository: opentelemetry-collector-contrib
 component_type: receiver
-schema_hash: 5f02f63b26d4
+schema_hash: cb7aa934b19a
 components:
 - name: activedirectorydsreceiver
   metadata:
@@ -1614,6 +1614,7 @@ components:
       codeowners:
         active:
         - Aneurysm9
+        emeritus:
         - axw
 - name: awslambdareceiver
   metadata:
@@ -1631,8 +1632,9 @@ components:
         active:
         - MichaelKatsoulis
         - Kavindu-Dodan
-        - axw
         - pjanotti
+        emeritus:
+        - axw
 - name: awss3receiver
   metadata:
     type: awss3
@@ -5088,8 +5090,9 @@ components:
         - logs
       codeowners:
         active:
-        - axw
         - constanca-m
+        emeritus:
+        - axw
     attributes:
       gcp.gcs.bucket.name:
         description: Bucket name.
@@ -7014,8 +7017,9 @@ components:
         active:
         - pavolloffay
         - MovieStoreGuy
-        - axw
         - paulojmdias
+        emeritus:
+        - axw
     attributes:
       node_id:
         description: The Kafka node ID.
@@ -9428,6 +9432,11 @@ components:
         active:
         - antonblock
         - ishleenk17
+        - ebrdarSplunk
+        - XSAM
+        - akshays-19
+        - sv-splunk
+        - splunk-shanu
         seeking_new: true
         emeritus:
         - djaglowski
@@ -10742,7 +10751,7 @@ components:
         - buffered
         - total
       network.io.direction:
-        description: Direction of the SQL*Net network transfer.
+        description: Direction of the network transfer.
         type: string
         enum:
         - receive
@@ -11004,10 +11013,17 @@ components:
           (UTC).
         type: string
       oracledb.session.type:
-        description: Class of session the database time is attributed to.
+        description: Class of session the activity is attributed to.
         type: string
         enum:
+        - background
         - foreground
+      oracledb.session.wait.state:
+        description: Whether the session wait time/count is for idle or non-idle wait
+          events.
+        type: string
+        enum:
+        - non_idle
       oracledb.sga.component.name:
         description: Name of the SGA component.
         type: string
@@ -11025,6 +11041,12 @@ components:
       oracledb.sid:
         description: ID of the Oracle Server session.
         type: string
+      oracledb.smon.type:
+        description: Type of recovery SMON was posted to perform.
+        type: string
+        enum:
+        - instance
+        - transaction
       oracledb.sort.type:
         description: Type of sort operation (e.g., memory, disk).
         type: string
@@ -11175,6 +11197,13 @@ components:
           value_type: int
           input_type: string
         stability: development
+      oracledb.cpu.usage.rate:
+        description: CPU consumption rate, in CPU-seconds used per second.
+        unit: '1'
+        enabled: false
+        gauge:
+          value_type: double
+        stability: development
       oracledb.cpu_time:
         description: Cumulative CPU time, in seconds
         unit: s
@@ -11202,6 +11231,14 @@ components:
         gauge:
           value_type: int
           input_type: string
+        stability: development
+      oracledb.cursor.cache.utilization:
+        description: Percentage of cursor executions that reused a cursor in the session
+          cursor cache.
+        unit: '%'
+        enabled: false
+        gauge:
+          value_type: double
         stability: development
       oracledb.cursor.open:
         description: Number of currently open cursors in the Oracle instance.
@@ -11382,6 +11419,18 @@ components:
           value_type: int
           input_type: string
         stability: development
+      oracledb.gc.current_block.time:
+        description: Cumulative time spent transferring current blocks between instances
+          over RAC cache fusion.
+        unit: s
+        enabled: false
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: double
+        attributes:
+        - network.io.direction
+        stability: development
       oracledb.hard_parses:
         description: Number of hard parses
         unit: '{parses}'
@@ -11392,6 +11441,14 @@ components:
           value_type: int
           input_type: string
         stability: development
+      oracledb.host.cpu.usage.rate:
+        description: Host CPU consumption rate across all cores, in CPU-seconds used
+          per second.
+        unit: '1'
+        enabled: false
+        gauge:
+          value_type: double
+        stability: development
       oracledb.host.cpu.utilization:
         description: Fraction of host CPU time in use, as computed by Oracle V$SYSMETRIC
           (% Busy/(Idle+Busy)).
@@ -11399,6 +11456,39 @@ components:
         enabled: false
         gauge:
           value_type: double
+        stability: development
+      oracledb.io.single_block.read.latency:
+        description: Average latency of a synchronous single-block read.
+        unit: s
+        enabled: false
+        gauge:
+          value_type: double
+        stability: development
+      oracledb.jvm.memory.committed:
+        description: Committed (total) size of Oracle's in-database JVM (OJVM) call
+          heap.
+        unit: By
+        enabled: false
+        gauge:
+          value_type: int
+          input_type: string
+        stability: development
+      oracledb.jvm.memory.live:
+        description: Size of live objects in Oracle's in-database JVM (OJVM) call
+          heap.
+        unit: By
+        enabled: false
+        gauge:
+          value_type: int
+          input_type: string
+        stability: development
+      oracledb.jvm.memory.used:
+        description: Used size of Oracle's in-database JVM (OJVM) call heap.
+        unit: By
+        enabled: false
+        gauge:
+          value_type: int
+          input_type: string
         stability: development
       oracledb.library_cache.utilization:
         description: Fraction of library cache pin requests that found the object
@@ -11420,6 +11510,17 @@ components:
         attributes:
         - disk.io.direction
         stability: development
+      oracledb.lock.time:
+        description: Cumulative time spent on transaction lock activity.
+        unit: s
+        enabled: false
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: double
+        attributes:
+        - oracledb.session.type
+        stability: development
       oracledb.logical_reads:
         description: Number of logical reads
         unit: '{reads}'
@@ -11433,6 +11534,16 @@ components:
       oracledb.logons:
         description: Number of logon operations
         unit: '{operation}'
+        enabled: false
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: int
+          input_type: string
+        stability: development
+      oracledb.os.swaps:
+        description: Number of OS swap operations.
+        unit: '{swap}'
         enabled: false
         sum:
           aggregation_temporality: cumulative
@@ -11556,6 +11667,14 @@ components:
           monotonic: true
           value_type: int
           input_type: string
+        stability: development
+      oracledb.pga.cache.utilization:
+        description: Percentage of PGA work-area memory requests satisfied without
+          spilling to temporary disk.
+        unit: '%'
+        enabled: false
+        gauge:
+          value_type: double
         stability: development
       oracledb.pga_memory:
         description: Session PGA (Program Global Area) memory
@@ -11694,6 +11813,16 @@ components:
           value_type: int
           input_type: string
         stability: development
+      oracledb.recovery.blocks:
+        description: Number of blocks read during instance or media recovery.
+        unit: '{block}'
+        enabled: false
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: int
+          input_type: string
+        stability: development
       oracledb.recycle_bin.limit:
         description: Total size of the recycle bin.
         unit: By
@@ -11803,6 +11932,46 @@ components:
           value_type: int
           input_type: string
         stability: development
+      oracledb.session.average:
+        description: Average number of sessions over the metric interval.
+        unit: '{session}'
+        enabled: false
+        gauge:
+          value_type: double
+        attributes:
+        - session_status
+        stability: development
+      oracledb.session.stored_procedure.memory:
+        description: Memory currently allocated for stored procedures in the session.
+        unit: By
+        enabled: false
+        gauge:
+          value_type: int
+          input_type: string
+        stability: development
+      oracledb.session.wait.time:
+        description: Cumulative time sessions spent in waits.
+        unit: s
+        enabled: false
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: double
+        attributes:
+        - oracledb.session.wait.state
+        stability: development
+      oracledb.session.waits:
+        description: Cumulative number of waits across sessions.
+        unit: '{wait}'
+        enabled: false
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: int
+          input_type: string
+        attributes:
+        - oracledb.session.wait.state
+        stability: development
       oracledb.sessions.limit:
         description: Maximum limit of active sessions, -1 if unlimited.
         unit: '{sessions}'
@@ -11845,6 +12014,18 @@ components:
         enabled: false
         gauge:
           value_type: double
+        stability: development
+      oracledb.smon.posts:
+        description: Number of times SMON was posted to perform recovery.
+        unit: '{post}'
+        enabled: false
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: int
+          input_type: string
+        attributes:
+        - oracledb.smon.type
         stability: development
       oracledb.sort.operations:
         description: Total count of sort operations.
@@ -11915,6 +12096,31 @@ components:
         gauge:
           value_type: double
         stability: development
+      oracledb.system.cpu.count:
+        description: Number of CPUs or processors available to the Oracle server,
+          as reported by the operating system.
+        unit: '{cpu}'
+        enabled: false
+        gauge:
+          value_type: int
+        stability: development
+      oracledb.system.memory.limit:
+        description: Total number of bytes of physical memory on the host running
+          the Oracle server.
+        unit: By
+        enabled: false
+        gauge:
+          value_type: int
+        stability: development
+      oracledb.system.process.count:
+        description: Current number of processes that are either running or in the
+          ready state, waiting to be selected by the operating-system scheduler to
+          run.
+        unit: '{process}'
+        enabled: false
+        gauge:
+          value_type: double
+        stability: development
       oracledb.tablespace_size.limit:
         description: Maximum size of tablespace in bytes, -1 if unlimited.
         unit: By
@@ -11932,6 +12138,23 @@ components:
           value_type: int
         attributes:
         - tablespace_name
+        stability: development
+      oracledb.transaction.response.time:
+        description: Average response time per transaction.
+        unit: s
+        enabled: false
+        gauge:
+          value_type: double
+        stability: development
+      oracledb.transaction.rollbacks:
+        description: Total number of transactions rolled back.
+        unit: '{rollback}'
+        enabled: false
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: int
+          input_type: string
         stability: development
       oracledb.transactions.limit:
         description: Maximum limit of active transactions, -1 if unlimited.
@@ -12225,6 +12448,10 @@ components:
         - ishleenk17
         - Caleb-Hurshman
         - ebrdarSplunk
+        - XSAM
+        - akshays-19
+        - sv-splunk
+        - splunk-shanu
         seeking_new: true
         emeritus:
         - djaglowski
@@ -12252,8 +12479,12 @@ components:
         enum:
         - sync
         - write
+      db.collection.name:
+        description: The name of the table within the database.
+        type: string
       db.namespace:
-        description: The namespace or schema of the database where the query is executed.
+        description: The database namespace, following the `{database}|{schema}` format
+          defined by OpenTelemetry semantic conventions for PostgreSQL.
         type: string
       db.query.text:
         description: The text of the database query being executed.
@@ -12337,6 +12568,9 @@ components:
         - lock
         - snapshot
         - tablespace
+      postgresql.index.name:
+        description: The name of the index on a table.
+        type: string
       postgresql.pid:
         description: Process ID of this backend.
         type: int
@@ -12449,6 +12683,8 @@ components:
           value_type: int
           monotonic: false
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.bgwriter.buffers.allocated:
         description: Number of buffers allocated.
@@ -12511,6 +12747,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.blks_read:
         description: Number of disk blocks read in this database.
@@ -12520,6 +12758,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.blocks_read:
         description: The number of blocks read.
@@ -12530,6 +12770,8 @@ components:
           monotonic: true
           aggregation_temporality: cumulative
         attributes:
+        - db.collection.name
+        - db.namespace
         - source
         stability: development
       postgresql.commits:
@@ -12540,6 +12782,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.connection.max:
         description: Configured maximum number of client connections allowed
@@ -12576,6 +12820,8 @@ components:
           value_type: int
           monotonic: false
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.deadlocks:
         description: The number of deadlocks.
@@ -12585,6 +12831,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.function.calls:
         description: The number of calls made to a function. Requires `track_functions=pl|all`
@@ -12596,6 +12844,7 @@ components:
           monotonic: true
           aggregation_temporality: cumulative
         attributes:
+        - db.namespace
         - function
         stability: development
       postgresql.index.scans:
@@ -12606,6 +12855,10 @@ components:
           aggregation_temporality: cumulative
           monotonic: true
           value_type: int
+        attributes:
+        - db.collection.name
+        - db.namespace
+        - postgresql.index.name
         stability: development
       postgresql.index.size:
         description: The size of the index on disk.
@@ -12613,6 +12866,10 @@ components:
         enabled: true
         gauge:
           value_type: int
+        attributes:
+        - db.collection.name
+        - db.namespace
+        - postgresql.index.name
         stability: development
       postgresql.operations:
         description: The number of db row operations.
@@ -12623,6 +12880,8 @@ components:
           monotonic: true
           aggregation_temporality: cumulative
         attributes:
+        - db.collection.name
+        - db.namespace
         - operation
         stability: development
       postgresql.query.conflicts:
@@ -12636,6 +12895,7 @@ components:
           monotonic: true
           aggregation_temporality: cumulative
         attributes:
+        - db.namespace
         - postgresql.conflict.type
         stability: development
       postgresql.replication.data_delay:
@@ -12655,6 +12915,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.rows:
         description: The number of rows in the database.
@@ -12665,6 +12927,8 @@ components:
           monotonic: false
           aggregation_temporality: cumulative
         attributes:
+        - db.collection.name
+        - db.namespace
         - state
         stability: development
       postgresql.sequential_scans:
@@ -12675,6 +12939,9 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.collection.name
+        - db.namespace
         stability: development
       postgresql.table.count:
         description: Number of user tables in a database.
@@ -12684,6 +12951,8 @@ components:
           aggregation_temporality: cumulative
           monotonic: false
           value_type: int
+        attributes:
+        - db.namespace
         stability: development
       postgresql.table.size:
         description: Disk space used by a table.
@@ -12693,6 +12962,9 @@ components:
           aggregation_temporality: cumulative
           monotonic: false
           value_type: int
+        attributes:
+        - db.collection.name
+        - db.namespace
         stability: development
       postgresql.table.vacuum.count:
         description: Number of times a table has manually been vacuumed.
@@ -12702,6 +12974,9 @@ components:
           aggregation_temporality: cumulative
           monotonic: true
           value_type: int
+        attributes:
+        - db.collection.name
+        - db.namespace
         stability: development
       postgresql.temp.io:
         description: Total amount of data written to temporary files by queries.
@@ -12711,6 +12986,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.temp_files:
         description: The number of temp files.
@@ -12720,6 +12997,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.tup_deleted:
         description: Number of rows deleted by queries in the database.
@@ -12729,6 +13008,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.tup_fetched:
         description: Number of rows fetched by queries in the database.
@@ -12738,6 +13019,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.tup_inserted:
         description: Number of rows inserted by queries in the database.
@@ -12747,6 +13030,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.tup_returned:
         description: Number of rows returned by queries in the database.
@@ -12756,6 +13041,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.tup_updated:
         description: Number of rows updated by queries in the database.
@@ -12765,6 +13052,8 @@ components:
           value_type: int
           monotonic: true
           aggregation_temporality: cumulative
+        attributes:
+        - db.namespace
         stability: development
       postgresql.wal.age:
         description: Age of the oldest WAL file.
@@ -12808,10 +13097,14 @@ components:
       postgresql.table.name:
         description: The table name.
         type: string
+      server.address:
+        description: The address of the PostgreSQL server.
+        type: string
+      server.port:
+        description: The port number of the PostgreSQL server.
+        type: int
       service.instance.id:
-        description: A unique identifier of the PostgreSQL instance in the format
-          host:port (defaults to 'unknown:5432' in case of error in generating this
-          value).
+        description: A unique identifier of the PostgreSQL instance.
         type: string
       service.name:
         description: Logical name of the service. When enabled, defaults to unknown_service:postgresql.
@@ -12969,6 +13262,26 @@ components:
         enabled: true
         sum:
           monotonic: false
+          aggregation_temporality: cumulative
+          value_type: int
+        stability: development
+      rabbitmq.exchange.messages.published_in:
+        description: The total number of messages published into an exchange from
+          channels.
+        unit: '{messages}'
+        enabled: false
+        sum:
+          monotonic: true
+          aggregation_temporality: cumulative
+          value_type: int
+        stability: development
+      rabbitmq.exchange.messages.published_out:
+        description: The total number of messages published out of an exchange to
+          bound queues.
+        unit: '{messages}'
+        enabled: false
+        sum:
+          monotonic: true
           aggregation_temporality: cumulative
           value_type: int
         stability: development
@@ -13686,6 +13999,13 @@ components:
           value_type: int
         stability: development
     resource_attributes:
+      rabbitmq.exchange.name:
+        description: The name of the RabbitMQ exchange.
+        type: string
+      rabbitmq.exchange.type:
+        description: The type of the RabbitMQ exchange (direct, fanout, topic, or
+          headers).
+        type: string
       rabbitmq.node.name:
         description: The name of the RabbitMQ node.
         type: string
@@ -16814,6 +17134,12 @@ components:
       client.port:
         description: TCP port used by the client.
         type: int
+      cursor.state:
+        description: The state of the cursor.
+        type: string
+        enum:
+        - active
+        - cached
       database.status:
         description: The current status of a database
         type: string
@@ -16893,6 +17219,11 @@ components:
         enum:
         - receive
         - transmit
+      request.state:
+        description: The state of the worker request.
+        type: string
+        enum:
+        - waiting
       server.address:
         description: The network address of the server hosting the database.
         type: string
@@ -16949,6 +17280,9 @@ components:
         enum:
         - allocated
         - deallocated
+      sqlserver.index.id:
+        description: The identifier of the index.
+        type: int
       sqlserver.lock.block.type:
         description: The type of lock block tracked by the lock manager.
         type: string
@@ -16970,6 +17304,9 @@ components:
       sqlserver.logical_reads:
         description: Number of logical reads (data read from cache/memory).
         type: int
+      sqlserver.object.name:
+        description: The name of the database object.
+        type: string
       sqlserver.open_transaction_count:
         description: Number of transactions currently open in the session.
         type: int
@@ -17047,6 +17384,9 @@ components:
       sqlserver.row_count:
         description: Number of rows affected or returned by the query.
         type: int
+      sqlserver.schema.name:
+        description: The name of the database schema.
+        type: string
       sqlserver.session.duration:
         description: Total elapsed time in seconds the session has been actively executing
           requests.
@@ -17126,6 +17466,18 @@ components:
         enum:
         - permanent
         - temporary
+      task.result:
+        description: The result of the task activation.
+        type: string
+        enum:
+        - aborted
+        - started
+      task.state:
+        description: The state of the task.
+        type: string
+        enum:
+        - limit_reached
+        - running
       tempdb.state:
         description: The status of the tempdb space usage.
         type: string
@@ -17148,6 +17500,14 @@ components:
         description: Type of the wait, view [WaitTypes documentation](https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-os-wait-stats-transact-sql?view=sql-server-ver16#WaitTypes)
           for more information.
         type: string
+      worker.state:
+        description: The state of the worker thread.
+        type: string
+        enum:
+        - active
+        - available
+        - maximum
+        - waiting_for_cpu
     metrics:
       sqlserver.access.scan.rate:
         description: Rate of access method scans.
@@ -17188,6 +17548,17 @@ components:
         gauge:
           value_type: double
         stability: development
+      sqlserver.clr.execution.time:
+        description: Total time spent executing in the CLR. Only non-zero when CLR
+          integration is enabled and CLR code has been executed.
+        unit: s
+        enabled: false
+        sum:
+          monotonic: true
+          aggregation_temporality: cumulative
+          value_type: double
+        attributes: []
+        stability: development
       sqlserver.computer.uptime:
         description: Computer uptime.
         unit: '{seconds}'
@@ -17211,6 +17582,39 @@ components:
         gauge:
           value_type: int
           input_type: string
+        stability: development
+      sqlserver.cursor.count:
+        description: Number of cursors by state.
+        unit: '{cursor}'
+        enabled: false
+        gauge:
+          value_type: int
+        attributes:
+        - cursor.state
+        stability: development
+      sqlserver.cursor.memory.usage:
+        description: Memory used by cursors.
+        unit: By
+        enabled: false
+        gauge:
+          value_type: int
+        attributes: []
+        stability: development
+      sqlserver.cursor.plan.count:
+        description: Number of active cursor plans.
+        unit: '{plan}'
+        enabled: false
+        gauge:
+          value_type: int
+        attributes: []
+        stability: development
+      sqlserver.cursor.request.rate:
+        description: Rate of cursor requests per second.
+        unit: '{request}/s'
+        enabled: false
+        gauge:
+          value_type: double
+        attributes: []
         stability: development
       sqlserver.database.backup_or_restore.rate:
         description: Total number of backups/restores.
@@ -17343,6 +17747,57 @@ components:
           value_type: double
         attributes: []
         stability: development
+      sqlserver.index.fragmentation:
+        description: Average fragmentation percentage of the index.
+        unit: '%'
+        enabled: false
+        gauge:
+          value_type: double
+        attributes:
+        - db.namespace
+        - sqlserver.index.id
+        - sqlserver.object.name
+        - sqlserver.schema.name
+        stability: development
+      sqlserver.index.page.count:
+        description: Number of pages in the index.
+        unit: '{page}'
+        enabled: false
+        gauge:
+          value_type: int
+          input_type: string
+        attributes:
+        - db.namespace
+        - sqlserver.index.id
+        - sqlserver.object.name
+        - sqlserver.schema.name
+        stability: development
+      sqlserver.index.page.utilization:
+        description: Average percentage of available data storage space used in all
+          pages of the index.
+        unit: '%'
+        enabled: false
+        gauge:
+          value_type: double
+        attributes:
+        - db.namespace
+        - sqlserver.index.id
+        - sqlserver.object.name
+        - sqlserver.schema.name
+        stability: development
+      sqlserver.index.record.count:
+        description: Total number of records in the index.
+        unit: '{record}'
+        enabled: false
+        gauge:
+          value_type: int
+          input_type: string
+        attributes:
+        - db.namespace
+        - sqlserver.index.id
+        - sqlserver.object.name
+        - sqlserver.schema.name
+        stability: development
       sqlserver.index.search.rate:
         description: Total number of index searches.
         unit: '{searches}/s'
@@ -17350,6 +17805,19 @@ components:
         gauge:
           value_type: double
         attributes: []
+        stability: development
+      sqlserver.index.size:
+        description: Total size of the index.
+        unit: By
+        enabled: false
+        gauge:
+          value_type: int
+          input_type: string
+        attributes:
+        - db.namespace
+        - sqlserver.index.id
+        - sqlserver.object.name
+        - sqlserver.schema.name
         stability: development
       sqlserver.latch.superlatch.count:
         description: Number of superlatches currently active.
@@ -17716,6 +18184,15 @@ components:
           value_type: double
         attributes: []
         stability: development
+      sqlserver.stored_procedure.invocation.rate:
+        description: Rate of Service Broker activated stored procedure invocations
+          per second.
+        unit: '{invocation}/s'
+        enabled: false
+        gauge:
+          value_type: double
+        attributes: []
+        stability: development
       sqlserver.table.count:
         description: The number of tables.
         unit: '{tables}'
@@ -17727,6 +18204,24 @@ components:
         attributes:
         - table.state
         - table.status
+        stability: development
+      sqlserver.task.count:
+        description: Number of Service Broker activation tasks by state.
+        unit: '{task}'
+        enabled: false
+        gauge:
+          value_type: int
+        attributes:
+        - task.state
+        stability: development
+      sqlserver.task.rate:
+        description: Rate of Service Broker activation tasks by type per second.
+        unit: '{task}/s'
+        enabled: false
+        gauge:
+          value_type: double
+        attributes:
+        - task.result
         stability: development
       sqlserver.transaction.delay:
         description: Time consumed in transaction delays.
@@ -17813,6 +18308,24 @@ components:
         enabled: true
         gauge:
           value_type: int
+        stability: development
+      sqlserver.worker.request.count:
+        description: Number of worker requests by state.
+        unit: '{request}'
+        enabled: false
+        gauge:
+          value_type: int
+        attributes:
+        - request.state
+        stability: development
+      sqlserver.worker.thread.count:
+        description: Number of worker threads by state.
+        unit: '{thread}'
+        enabled: false
+        gauge:
+          value_type: int
+        attributes:
+        - worker.state
         stability: development
       sqlserver.worktable.cache.hit_ratio:
         description: Fraction of worktables that did not require initialization because
