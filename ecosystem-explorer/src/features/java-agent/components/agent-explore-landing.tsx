@@ -20,6 +20,8 @@ import { NavigationCard } from "@/components/ui/navigation-card";
 import { useTranslation } from "react-i18next";
 import { ExternalLink } from "lucide-react";
 
+import { JavaAgentAnnouncements } from "./java-agent-announcements";
+
 const RESOURCES = [
   {
     key: "gettingStarted",
@@ -66,6 +68,8 @@ export function AgentExploreLanding() {
             icon={<ReleaseIcon className="h-20 w-20" />}
           />
         </div>
+
+        <JavaAgentAnnouncements />
 
         <section aria-labelledby="java-agent-resources" className="space-y-4">
           <div>

@@ -71,6 +71,11 @@
         "configReference": "Java Agent Configuration Reference",
         "githubRepo": "GitHub Repository"
       }
+    },
+    "announcements": {
+      "heading": "News & Announcements",
+      "empty": "No announcements at this time.",
+      "readMore": "Read more"
     }
   },
   "list": {
