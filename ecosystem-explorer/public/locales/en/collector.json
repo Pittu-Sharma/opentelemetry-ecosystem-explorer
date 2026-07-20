@@ -37,16 +37,7 @@
   },
   "listV1": {
     "facets": {
-      "panel": {
-        "label": "Filters",
-        "close": "Close filters"
-      },
-      "search": {
-        "title": "Search",
-        "placeholder": "Search name or description…"
-      },
       "type": {
-        "title": "Type",
         "options": {
           "receiver": "Receiver",
           "processor": "Processor",
@@ -55,17 +46,7 @@
           "extension": "Extension"
         }
       },
-      "signal": {
-        "title": "Signal",
-        "options": {
-          "traces": "Traces",
-          "metrics": "Metrics",
-          "logs": "Logs",
-          "baggage": "Baggage"
-        }
-      },
       "stability": {
-        "title": "Stability",
         "options": {
           "stable": "Stable",
           "beta": "Beta",
@@ -76,15 +57,10 @@
         }
       },
       "distribution": {
-        "title": "Distribution",
         "options": {
           "core": "Core",
           "contrib": "Contrib"
         }
-      },
-      "version": {
-        "title": "Version",
-        "latest": "Latest"
       }
     }
   },

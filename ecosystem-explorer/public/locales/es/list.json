@@ -52,5 +52,37 @@
         "stability": "Estabilidad"
       }
     }
+  },
+  "facets": {
+    "panel": {
+      "label": "Filtros",
+      "close": "Cerrar filtros"
+    },
+    "search": {
+      "title": "Buscar",
+      "placeholder": "Buscar por nombre o descripción…"
+    },
+    "type": {
+      "title": "Tipo"
+    },
+    "signal": {
+      "title": "Señal",
+      "options": {
+        "traces": "Trazas",
+        "metrics": "Métricas",
+        "logs": "Logs",
+        "baggage": "Baggage"
+      }
+    },
+    "stability": {
+      "title": "Estabilidad"
+    },
+    "distribution": {
+      "title": "Distribución"
+    },
+    "version": {
+      "title": "Versión",
+      "latest": "Más reciente"
+    }
   }
 }

@@ -37,16 +37,7 @@
   },
   "listV1": {
     "facets": {
-      "panel": {
-        "label": "Filtros",
-        "close": "Cerrar filtros"
-      },
-      "search": {
-        "title": "Buscar",
-        "placeholder": "Buscar por nombre o descripción…"
-      },
       "type": {
-        "title": "Tipo",
         "options": {
           "receiver": "Receptor",
           "processor": "Procesador",
@@ -55,17 +46,7 @@
           "extension": "Extensión"
         }
       },
-      "signal": {
-        "title": "Señal",
-        "options": {
-          "traces": "Trazas",
-          "metrics": "Métricas",
-          "logs": "Logs",
-          "baggage": "Baggage"
-        }
-      },
       "stability": {
-        "title": "Estabilidad",
         "options": {
           "stable": "Estable",
           "beta": "Beta",
@@ -76,15 +57,10 @@
         }
       },
       "distribution": {
-        "title": "Distribución",
         "options": {
           "core": "Core",
           "contrib": "Contrib"
         }
-      },
-      "version": {
-        "title": "Versión",
-        "latest": "Más reciente"
       }
     }
   },

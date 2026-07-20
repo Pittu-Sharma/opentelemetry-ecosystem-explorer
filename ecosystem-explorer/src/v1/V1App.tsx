@@ -54,10 +54,8 @@ const CollectorPage = lazy(() =>
     default: m.CollectorLandingV1,
   }))
 );
-const CollectorComponentsPage = lazy(() =>
-  import("@/features/collector/collector-components-page").then((m) => ({
-    default: m.CollectorComponentsPage,
-  }))
+const CollectorListPage = lazy(() =>
+  import("@/v1/features/list/list-page").then((m) => ({ default: m.CollectorListPageV1 }))
 );
 const CollectorDetailPage = lazy(() =>
   import("@/features/collector/collector-detail-page").then((m) => ({
@@ -123,8 +121,8 @@ export function V1App() {
                 element={<ConfigurationBuilderPage />}
               />
               <Route path="/collector" element={<CollectorPage />} />
-              <Route path="/collector/components" element={<CollectorComponentsPage />} />
-              <Route path="/collector/components/:version" element={<CollectorComponentsPage />} />
+              <Route path="/collector/components" element={<CollectorListPage />} />
+              <Route path="/collector/components/:version" element={<CollectorListPage />} />
               <Route
                 path="/collector/components/:distribution/:name"
                 element={<CollectorDetailPage />}
