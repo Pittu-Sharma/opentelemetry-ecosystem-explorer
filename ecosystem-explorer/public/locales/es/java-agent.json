@@ -73,8 +73,7 @@
       }
     },
     "announcements": {
-      "heading": "News & Announcements",
-      "empty": "No announcements at this time.",
+      "heading": "Noticias y Anuncios",
       "readMore": "Leer más"
     }
   },
