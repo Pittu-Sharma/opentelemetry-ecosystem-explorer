@@ -58,9 +58,7 @@ const CollectorListPage = lazy(() =>
   import("@/v1/features/list/list-page").then((m) => ({ default: m.CollectorListPageV1 }))
 );
 const CollectorDetailPage = lazy(() =>
-  import("@/features/collector/collector-detail-page").then((m) => ({
-    default: m.CollectorDetailPage,
-  }))
+  import("@/v1/features/detail/detail-page").then((m) => ({ default: m.CollectorDetailPageV1 }))
 );
 const NotFoundPage = lazy(() =>
   import("@/features/not-found/not-found-page").then((m) => ({ default: m.NotFoundPage }))

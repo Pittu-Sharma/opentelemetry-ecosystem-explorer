@@ -185,6 +185,13 @@
       "viewOnGithub": "Ver en GitHub",
       "viewDocumentation": "Ver documentación"
     },
+    "typeLabels": {
+      "receiver": "Receptores",
+      "processor": "Procesadores",
+      "exporter": "Exportadores",
+      "connector": "Conectores",
+      "extension": "Extensiones"
+    },
     "typeDescriptions": {
       "receiver": "Los receptores recopilan datos de telemetría de diversas fuentes y formatos.",
       "processor": "Los procesadores transforman, filtran o enriquecen datos de telemetría entre receptores y exportadores.",

@@ -185,6 +185,13 @@
       "viewOnGithub": "View on GitHub",
       "viewDocumentation": "View Documentation"
     },
+    "typeLabels": {
+      "receiver": "Receivers",
+      "processor": "Processors",
+      "exporter": "Exporters",
+      "connector": "Connectors",
+      "extension": "Extensions"
+    },
     "typeDescriptions": {
       "receiver": "Receivers collect telemetry data from various sources and formats.",
       "processor": "Processors transform, filter, or enrich telemetry data between receivers and exporters.",
