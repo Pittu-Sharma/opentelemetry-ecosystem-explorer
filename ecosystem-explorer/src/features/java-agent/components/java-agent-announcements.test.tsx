@@ -80,4 +80,25 @@ describe("JavaAgentAnnouncements", () => {
     expect(links[0]).toHaveAttribute("href", "https://example.com/news");
     expect(links[0]).toHaveTextContent("Read more");
   });
+
+  it("does not render link anchor when scheme is unsafe (e.g. javascript:)", () => {
+    const mockAnnouncements: Announcement[] = [
+      {
+        id: "1",
+        date: "2026-07-20",
+        title: "Test Announcement",
+        body: "This is a test announcement body.",
+        link: "javascript:alert('XSS')",
+      },
+    ];
+
+    vi.mocked(useJavaAgentAnnouncements).mockReturnValue({
+      data: mockAnnouncements,
+      loading: false,
+      error: null,
+    });
+    render(<JavaAgentAnnouncements />);
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 });

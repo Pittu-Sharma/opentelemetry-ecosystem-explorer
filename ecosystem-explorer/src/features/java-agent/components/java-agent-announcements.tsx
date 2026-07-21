@@ -17,6 +17,7 @@
 import { useTranslation } from "react-i18next";
 import { useJavaAgentAnnouncements } from "../hooks/use-java-agent-announcements";
 import { ExternalLink, Calendar } from "lucide-react";
+import { isSafeUrl } from "../utils/url";
 
 export function JavaAgentAnnouncements() {
   const { t } = useTranslation("java-agent");
@@ -49,7 +50,7 @@ export function JavaAgentAnnouncements() {
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">{announcement.body}</p>
             </div>
-            {announcement.link && (
+            {announcement.link && isSafeUrl(announcement.link) && (
               <div className="border-border/40 mt-4 border-t pt-4">
                 <a
                   href={announcement.link}

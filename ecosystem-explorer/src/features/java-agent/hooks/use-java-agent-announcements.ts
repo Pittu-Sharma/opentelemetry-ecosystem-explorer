@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from "react";
 import type { DataState } from "@/hooks/data-state";
+import { resolveDataPath } from "@/lib/api/fetch-with-cache";
 
 export interface Announcement {
   id: string;
@@ -37,9 +38,7 @@ export function useJavaAgentAnnouncements(): DataState<Announcement[]> {
 
     async function loadAnnouncements() {
       try {
-        const response = await fetch(
-          `${import.meta.env.BASE_URL}data/javaagent/announcements.json`
-        );
+        const response = await fetch(resolveDataPath("data/javaagent", "announcements.json"));
         if (cancelled) return;
 
         if (!response.ok) {
