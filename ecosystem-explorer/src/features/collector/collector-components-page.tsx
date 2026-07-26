@@ -42,7 +42,7 @@ import type { Stability } from "@/types/collector";
 
 type ComponentTypeFilter =
   "all" | "receiver" | "processor" | "exporter" | "extension" | "connector";
-type DistributionFilter = "all" | "core" | "contrib";
+type DistributionFilter = "all" | string;
 type StabilityFilter = Stability | "all";
 
 // Ranked most-to-least stable, matching the detail page's stability legend ordering.
@@ -69,13 +69,8 @@ function getTypeFilter(value: string | null): ComponentTypeFilter {
 }
 
 function getDistributionFilter(value: string | null): DistributionFilter {
-  switch (value) {
-    case "core":
-    case "contrib":
-      return value;
-    default:
-      return "all";
-  }
+  if (!value) return "all";
+  return value;
 }
 
 function getStabilityFilter(value: string | null): StabilityFilter {
@@ -390,6 +385,8 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
                   <option value="all">{t("filters.distribution.all")}</option>
                   <option value="core">{t("filters.distribution.core")}</option>
                   <option value="contrib">{t("filters.distribution.contrib")}</option>
+                  <option value="k8s">{t("filters.distribution.k8s")}</option>
+                  <option value="otlp">{t("filters.distribution.otlp")}</option>
                 </select>
                 <ChevronDown
                   className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2"
