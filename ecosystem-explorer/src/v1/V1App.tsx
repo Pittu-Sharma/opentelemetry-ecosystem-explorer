@@ -58,9 +58,10 @@ const CollectorListPage = lazy(() =>
   import("@/v1/features/list/list-page").then((m) => ({ default: m.CollectorListPageV1 }))
 );
 const CollectorDetailPage = lazy(() =>
-  import("@/features/collector/collector-detail-page").then((m) => ({
-    default: m.CollectorDetailPage,
-  }))
+  import("@/v1/features/detail/detail-page").then((m) => ({ default: m.CollectorDetailPageV1 }))
+);
+const CollectorDiffPage = lazy(() =>
+  import("@/v1/features/detail/diff-page").then((m) => ({ default: m.CollectorDiffPageV1 }))
 );
 const NotFoundPage = lazy(() =>
   import("@/features/not-found/not-found-page").then((m) => ({ default: m.NotFoundPage }))
@@ -126,6 +127,10 @@ export function V1App() {
               <Route
                 path="/collector/components/:distribution/:name"
                 element={<CollectorDetailPage />}
+              />
+              <Route
+                path="/collector/components/:distribution/:name/diff"
+                element={<CollectorDiffPage />}
               />
               <Route path="/about" element={<AboutPage />} />
               {isEnabled("DEV_SHOWCASE") && (

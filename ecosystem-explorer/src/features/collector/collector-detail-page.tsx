@@ -16,7 +16,7 @@
 import { useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Info, ExternalLink, AlertCircle, Check, Activity } from "lucide-react";
+import { Info, ExternalLink, AlertCircle, Check, Activity, BookOpen } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import { BackButton } from "@/components/ui/back-button";
@@ -28,8 +28,10 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { PageContainer } from "@/components/layout/page-container";
 import { Seo } from "@/components/seo/seo";
 import { deriveCollectorMeta } from "@/lib/seo/derive";
+import { renderWithInlineCode } from "@/lib/render-inline-code";
 import { useCollectorComponent, useCollectorVersions } from "@/hooks/use-collector-data";
 import { CollectorTelemetryTab } from "./components/collector-telemetry-tab";
+import { CollectorReadmeTab } from "./components/collector-readme-tab";
 
 const getBadgeVariant = (level: string): "success" | "info" | "warning" | "muted" => {
   const lower = level.toLowerCase();
@@ -215,7 +217,7 @@ export function CollectorDetailPage() {
 
             {component.description && (
               <p className="text-muted-foreground max-w-4xl text-base leading-relaxed">
-                {component.description}
+                {renderWithInlineCode(component.description)}
               </p>
             )}
           </div>
@@ -243,6 +245,15 @@ export function CollectorDetailPage() {
                           value: "telemetry",
                           label: t("detail.tabs.telemetry"),
                           icon: <Activity className="h-4 w-4" aria-hidden="true" />,
+                        },
+                      ]
+                    : []),
+                  ...(component.markdown_hash
+                    ? [
+                        {
+                          value: "readme",
+                          label: t("detail.tabs.readme"),
+                          icon: <BookOpen className="h-4 w-4" aria-hidden="true" />,
                         },
                       ]
                     : []),
@@ -472,6 +483,12 @@ export function CollectorDetailPage() {
                   attributes={component.attributes}
                   resourceAttributes={component.resource_attributes}
                 />
+              </TabsContent>
+            )}
+
+            {component.markdown_hash && (
+              <TabsContent value="readme" className="mt-0 p-4 sm:p-6">
+                <CollectorReadmeTab name={component.name} markdownHash={component.markdown_hash} />
               </TabsContent>
             )}
           </Tabs>
