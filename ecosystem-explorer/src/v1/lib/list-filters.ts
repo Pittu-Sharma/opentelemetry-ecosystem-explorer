@@ -86,11 +86,13 @@ export const STABILITIES: readonly StabilityFacet[] = [
   "deprecated",
   "unmaintained",
 ];
-export const DISTRIBUTIONS: readonly Distribution[] = ["core", "contrib", "k8s", "otlp"];
 /** @deprecated `Distribution` is now an open string type. This list covers the four
  * distributions shipped with the official releases and is kept for backwards
- * compatibility with any callers that render a static list of options. New distributions
- * are picked up from the index `taxonomy.distributions` field at runtime. */
+ * compatibility with callers that render a static list of checkbox options (e.g.
+ * the facet panel). URL parsing and row-level filtering are already open-ended
+ * via `parseCsvOpen`, so any distribution value in the index is filterable from
+ * the URL even if it is not listed here. */
+export const DISTRIBUTIONS: readonly Distribution[] = ["core", "contrib", "k8s", "otlp"];
 const SORTS: readonly SortMode[] = ["name", "updated", "stability"];
 const DENSITIES: readonly DensityMode[] = ["cards", "compact", "table"];
 
