@@ -73,7 +73,7 @@ function componentToRow(c: IndexComponent, basePath: string): ListRow {
     name: c.name,
     displayName: c.display_name?.trim() || c.name,
     type: c.type as CollectorComponentType,
-    distribution: c.distribution,
+    repository: c.distribution,
     distributions: c.distributions ?? [c.distribution],
     description: c.description ?? null,
     stability: (c.stability ?? "development") as StabilityFacet,

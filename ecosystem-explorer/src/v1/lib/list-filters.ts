@@ -86,11 +86,11 @@ export const STABILITIES: readonly StabilityFacet[] = [
   "deprecated",
   "unmaintained",
 ];
-export const DISTRIBUTIONS: readonly Distribution[] = ["core", "contrib", "k8s", "otlp"];
 /** @deprecated `Distribution` is now an open string type. This list covers the four
  * distributions shipped with the official releases and is kept for backwards
  * compatibility with any callers that render a static list of options. New distributions
  * are accepted in the URL and will affect filtering/counts when present in the index. */
+export const DISTRIBUTIONS: readonly Distribution[] = ["core", "contrib", "k8s", "otlp"];
 const SORTS: readonly SortMode[] = ["name", "updated", "stability"];
 const DENSITIES: readonly DensityMode[] = ["cards", "compact", "table"];
 

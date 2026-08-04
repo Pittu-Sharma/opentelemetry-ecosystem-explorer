@@ -48,7 +48,7 @@
         "name": "Nombre",
         "type": "Tipo",
         "signals": "Señales",
-        "distribution": "Distribución",
+        "repository": "Repositorio",
         "stability": "Estabilidad"
       }
     }

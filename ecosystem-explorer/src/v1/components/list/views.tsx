@@ -35,7 +35,7 @@ export interface ListRow {
   name: string;
   displayName: string;
   type: CollectorComponentType;
-  distribution: Distribution;
+  repository: string;
   distributions: Distribution[];
   description: string | null;
   stability: StabilityFacet;
@@ -108,7 +108,7 @@ export function CardView({ rows }: ListViewProps) {
             {row.signals.length > 0 && (
               <span className="td-card__signals">{row.signals.join(", ")}</span>
             )}
-            <span className="td-card__dist">{row.distribution}</span>
+            <span className="td-card__repo">{row.repository}</span>
           </div>
         </Link>
       ))}
@@ -126,7 +126,7 @@ export function TableView({ rows }: ListViewProps) {
             <th scope="col">{t("views.table.columns.name")}</th>
             <th scope="col">{t("views.table.columns.type")}</th>
             <th scope="col">{t("views.table.columns.signals")}</th>
-            <th scope="col">{t("views.table.columns.distribution")}</th>
+            <th scope="col">{t("views.table.columns.repository")}</th>
             <th scope="col">{t("views.table.columns.stability")}</th>
           </tr>
         </thead>
@@ -146,7 +146,7 @@ export function TableView({ rows }: ListViewProps) {
               </td>
               <td>{row.type}</td>
               <td>{row.signals.join(", ") || "—"}</td>
-              <td>{row.distribution}</td>
+              <td>{row.repository}</td>
               <td>
                 <StatusPill stability={row.stability} />
               </td>
