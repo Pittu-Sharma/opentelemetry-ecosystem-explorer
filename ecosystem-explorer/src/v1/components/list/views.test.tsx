@@ -26,8 +26,7 @@ const rows: ListRow[] = [
     name: "otlpreceiver",
     displayName: "OTLP Receiver",
     type: "receiver",
-    repository: "core",
-    distributions: ["core"],
+    distribution: "core",
     description: "Receives telemetry via gRPC or HTTP in OTLP format.",
     stability: "stable",
     signals: ["traces", "metrics", "logs"],
@@ -38,8 +37,7 @@ const rows: ListRow[] = [
     name: "kafkaexporter",
     displayName: "Kafka Exporter",
     type: "exporter",
-    repository: "contrib",
-    distributions: ["contrib"],
+    distribution: "contrib",
     description: null,
     stability: "alpha",
     signals: [],
@@ -118,7 +116,7 @@ describe("TableView", () => {
   it("renders a table with all five column headers", () => {
     renderTableView();
     expect(screen.getByRole("table")).toBeInTheDocument();
-    for (const header of ["Name", "Type", "Signals", "Repository", "Stability"]) {
+    for (const header of ["Name", "Type", "Signals", "Distribution", "Stability"]) {
       expect(screen.getByRole("columnheader", { name: header })).toBeInTheDocument();
     }
   });
