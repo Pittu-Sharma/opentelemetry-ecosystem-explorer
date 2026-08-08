@@ -143,10 +143,14 @@ instrumentations:
         assert sync.inventory_manager.version_exists(Version("2.10.1-SNAPSHOT"))
 
     def test_sync_no_new_release(self, sync, mock_client, inventory_manager):
-        # Seed version with readme field so readmes_synced() returns True
+        # Seed version with readmes_synced=True so readmes_synced() returns True
         inventory_manager.save_versioned_inventory(
             version=Version("2.10.0"),
-            instrumentations={"file_format": 0.1, "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}]},
+            instrumentations={
+                "file_format": 0.1,
+                "readmes_synced": True,
+                "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}],
+            },
         )
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
@@ -317,10 +321,14 @@ libraries:
 
     def test_process_latest_release_skips_backfill_when_readmes_exist(self, mock_client, inventory_manager):
         version = Version("2.10.0")
-        # Version exists and already has readme fields in instrumentation.yaml
+        # Version exists and has readmes_synced=True in instrumentation.yaml
         inventory_manager.save_versioned_inventory(
             version=version,
-            instrumentations={"file_format": 0.1, "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}]},
+            instrumentations={
+                "file_format": 0.1,
+                "readmes_synced": True,
+                "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}],
+            },
         )
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
@@ -350,6 +358,20 @@ libraries:
         # Only 1 readme was successfully fetched, should be in global dir
         global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
         assert len(list(global_readme_dir.glob("*.md"))) == 1
+        # Because 1 fetch failed, readmes_synced must be False
+        assert not inventory_manager.readmes_synced(version)
+
+        # Retry sync on second run: fetch succeeds for both
+        def fetch_side_effect(path, sha):
+            return "# Akka README" if "akka" in path else "# Apache README"
+
+        mock_client.fetch_raw_file.side_effect = fetch_side_effect
+
+        sync.process_latest_release()
+
+        # Both READMEs are now written (1 per library) and readmes_synced is set to True
+        assert len(list(global_readme_dir.glob("*.md"))) == 2
+        assert inventory_manager.readmes_synced(version)
 
     def test_resolve_ref_failure_does_not_abort_sync(self, mock_client, inventory_manager):
         from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError

@@ -248,7 +248,7 @@ class TestInventoryManager:
 
     # --- save_library_readmes ---
 
-    def test_readmes_synced_false_when_no_readme_field(self, inventory_manager):
+    def test_readmes_synced_false_when_not_set(self, inventory_manager):
         version = Version("2.10.0")
         inventory_manager.save_versioned_inventory(
             version=version,
@@ -256,11 +256,15 @@ class TestInventoryManager:
         )
         assert not inventory_manager.readmes_synced(version)
 
-    def test_readmes_synced_true_when_readme_field_present(self, inventory_manager):
+    def test_readmes_synced_true_when_flag_present(self, inventory_manager):
         version = Version("2.10.0")
         inventory_manager.save_versioned_inventory(
             version=version,
-            instrumentations={"file_format": 0.1, "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}]},
+            instrumentations={
+                "file_format": 0.1,
+                "readmes_synced": True,
+                "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}],
+            },
         )
         assert inventory_manager.readmes_synced(version)
 

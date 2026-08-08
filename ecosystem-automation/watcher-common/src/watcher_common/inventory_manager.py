@@ -220,14 +220,9 @@ class JavaagentInventoryManager(BaseInventoryManager):
         return data
 
     def readmes_synced(self, version: Version) -> bool:
-        """Return True if the readmes have been synced for this version."""
+        """Return True if the readmes have been fully synced for this version."""
         data = self.load_versioned_inventory(version)
-        libraries_raw = data.get("libraries", [])
-        if isinstance(libraries_raw, dict):
-            libraries = [lib for group in libraries_raw.values() for lib in group]
-        else:
-            libraries = libraries_raw
-        return any(lib.get("readme") for lib in libraries)
+        return bool(data.get("readmes_synced", False))
 
     def _sanitize_name(self, name: str) -> str:
         """Sanitizes a name for use as a filename to prevent path traversal."""

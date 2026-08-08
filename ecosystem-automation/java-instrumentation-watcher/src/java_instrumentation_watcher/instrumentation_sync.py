@@ -190,6 +190,7 @@ class InstrumentationSync:
         }
 
         fetched: list[tuple[str, str]] = []
+        fetch_errors = 0
         for source_path, blob_path in discovered.items():
             name = name_by_source.get(source_path)
             if not name:
@@ -198,6 +199,7 @@ class InstrumentationSync:
                 content = self.readme_extractor.fetch_readme(blob_path, sha)
                 fetched.append((name, content))
             except GithubAPIError as e:
+                fetch_errors += 1
                 logger.warning(f"  Skipping README for {name}: {e}")
 
         written_map = self.inventory_manager.save_library_readmes(version, fetched)
@@ -205,5 +207,8 @@ class InstrumentationSync:
         for lib in libraries:
             if lib.get("name") in written_map:
                 lib["readme"] = written_map[lib["name"]]
+
+        if fetch_errors == 0:
+            instrumentations["readmes_synced"] = True
 
         logger.info(f"  Stored {len(written_map)} library README(s) for v{version}")
