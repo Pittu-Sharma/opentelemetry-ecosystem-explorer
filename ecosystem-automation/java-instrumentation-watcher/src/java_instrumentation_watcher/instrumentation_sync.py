@@ -93,20 +93,24 @@ class InstrumentationSync:
         version = Version(tag_string.lstrip("v"))
 
         if self.inventory_manager.version_exists(version):
-            if not self.inventory_manager.readme_dir_exists(version):
+            if not self.inventory_manager.readmes_synced(version):
                 instrumentations = self.inventory_manager.load_versioned_inventory(version)
                 self._sync_library_readmes(version, tag_string, instrumentations)
+                self.inventory_manager.save_versioned_inventory(
+                    version=version,
+                    instrumentations=instrumentations,
+                )
             return None
 
         logger.info(f"  Fetching instrumentation list for {tag_string}...")
         yaml_content = self.client.fetch_instrumentation_list(ref=tag_string)
         instrumentations = parse_instrumentation_yaml(yaml_content)
 
+        self._sync_library_readmes(version, tag_string, instrumentations)
         self.inventory_manager.save_versioned_inventory(
             version=version,
             instrumentations=instrumentations,
         )
-        self._sync_library_readmes(version, tag_string, instrumentations)
 
         return version
 
@@ -148,11 +152,11 @@ class InstrumentationSync:
         if removed > 0:
             logger.info(f"  Removed {removed} old snapshot(s)")
 
+        self._sync_library_readmes(snapshot_version, main_ref, instrumentations)
         self.inventory_manager.save_versioned_inventory(
             version=snapshot_version,
             instrumentations=instrumentations,
         )
-        self._sync_library_readmes(snapshot_version, main_ref, instrumentations)
 
         return snapshot_version
 
@@ -196,5 +200,10 @@ class InstrumentationSync:
             except GithubAPIError as e:
                 logger.warning(f"  Skipping README for {name}: {e}")
 
-        written = self.inventory_manager.save_library_readmes(version, fetched)
-        logger.info(f"  Stored {written} library README(s) for v{version}")
+        written_map = self.inventory_manager.save_library_readmes(version, fetched)
+
+        for lib in libraries:
+            if lib.get("name") in written_map:
+                lib["readme"] = written_map[lib["name"]]
+
+        logger.info(f"  Stored {len(written_map)} library README(s) for v{version}")
