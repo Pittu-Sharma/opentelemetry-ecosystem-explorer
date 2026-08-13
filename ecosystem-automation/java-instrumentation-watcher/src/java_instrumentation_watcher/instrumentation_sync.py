@@ -56,6 +56,7 @@ class InstrumentationSync:
         This will:
         1. Process the latest release (if new)
         2. Update the snapshot from main branch
+        3. Prune orphaned README files from the global library_readmes/ directory
 
         Returns:
             Summary dictionary with processing results
@@ -78,6 +79,10 @@ class InstrumentationSync:
         summary["snapshot_updated"] = str(snapshot_version)
         logger.info(f"✓ Updated snapshot: {snapshot_version}")
 
+        pruned = self.inventory_manager.prune_orphan_readmes()
+        if pruned > 0:
+            logger.info(f"  Pruned {pruned} orphaned README file(s) from global library_readmes/")
+
         return summary
 
     def process_latest_release(self) -> Version | None:
@@ -95,22 +100,26 @@ class InstrumentationSync:
         if self.inventory_manager.version_exists(version):
             if not self.inventory_manager.readmes_synced(version):
                 instrumentations = self.inventory_manager.load_versioned_inventory(version)
-                self._sync_library_readmes(version, tag_string, instrumentations)
+                all_fetched = self._sync_library_readmes(version, tag_string, instrumentations)
                 self.inventory_manager.save_versioned_inventory(
                     version=version,
                     instrumentations=instrumentations,
                 )
+                if all_fetched:
+                    self.inventory_manager.mark_readmes_synced(version)
             return None
 
         logger.info(f"  Fetching instrumentation list for {tag_string}...")
         yaml_content = self.client.fetch_instrumentation_list(ref=tag_string)
         instrumentations = parse_instrumentation_yaml(yaml_content)
 
-        self._sync_library_readmes(version, tag_string, instrumentations)
+        all_fetched = self._sync_library_readmes(version, tag_string, instrumentations)
         self.inventory_manager.save_versioned_inventory(
             version=version,
             instrumentations=instrumentations,
         )
+        if all_fetched:
+            self.inventory_manager.mark_readmes_synced(version)
 
         return version
 
@@ -152,11 +161,13 @@ class InstrumentationSync:
         if removed > 0:
             logger.info(f"  Removed {removed} old snapshot(s)")
 
-        self._sync_library_readmes(snapshot_version, main_ref, instrumentations)
+        all_fetched = self._sync_library_readmes(snapshot_version, main_ref, instrumentations)
         self.inventory_manager.save_versioned_inventory(
             version=snapshot_version,
             instrumentations=instrumentations,
         )
+        if all_fetched:
+            self.inventory_manager.mark_readmes_synced(snapshot_version)
 
         return snapshot_version
 
@@ -165,18 +176,21 @@ class InstrumentationSync:
         version: Version,
         ref: str,
         instrumentations: dict,
-    ) -> None:
+    ) -> bool:
         """Best-effort: fetch library READMEs at `ref` and persist content-addressed.
 
         Per-file failures are logged and skipped; tree-discovery failure aborts
         only this step, never the sync.
+
+        Returns:
+            True if all READMEs were fetched without error, False otherwise.
         """
         try:
             sha = ref if _SHA_RE.match(ref) else self.client.resolve_ref_to_sha(ref)
             discovered = self.readme_extractor.discover_library_readmes(sha)
         except GithubAPIError as e:
             logger.warning(f"  README discovery failed for {ref}: {e}")
-            return
+            return False
 
         libraries_raw = instrumentations.get("libraries", [])
         # Parsed YAML may keep grouped format {tag: [lib, ...]} or flat list
@@ -208,7 +222,5 @@ class InstrumentationSync:
             if lib.get("name") in written_map:
                 lib["readme"] = written_map[lib["name"]]
 
-        if fetch_errors == 0:
-            instrumentations["readmes_synced"] = True
-
         logger.info(f"  Stored {len(written_map)} library README(s) for v{version}")
+        return fetch_errors == 0

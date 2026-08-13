@@ -378,7 +378,7 @@ class TestLibraryReadme:
 
         assert len(readme_map) == 2
         assert readme_map["mylib"] == "abc123def456"
-        # 'other-lib' sanitizes to 'other-lib' (hyphens are kept as-is)
+        # Key is the raw library name from YAML (not sanitized)
         assert readme_map["other-lib"] == "ffffff000000"
         assert "no-readme-lib" not in readme_map
 
@@ -392,6 +392,9 @@ class TestLibraryReadme:
             },
         )
         readme_map = inventory_manager.load_library_readme_map(version)
+        # No libraries have a 'readme' field (pre-migration state), and no legacy
+        # per-version library_readmes/ directory exists in this fixture, so both
+        # the new YAML path and the legacy fallback return {} – which is correct.
         assert readme_map == {}
 
     def test_load_library_readme_content_reads_from_global_dir(self, inventory_manager):
@@ -432,3 +435,34 @@ class TestLibraryReadme:
         assert (global_readme_dir / "mylib-abc123def456.md").exists()
         assert not (global_readme_dir / "orphan1-deadbeef0001.md").exists()
         assert not (global_readme_dir / "orphan2-deadbeef0002.md").exists()
+
+    def test_prune_orphan_readmes_no_refs_returns_zero(self, inventory_manager):
+        """prune_orphan_readmes must NOT delete anything when no version references any README.
+
+        This is the state of the registry before the #883 migration: no instrumentation.yaml
+        has a 'readme' field, so referenced_files is empty.  Deleting every file in the
+        global directory would be destructive and wrong.
+        """
+        version = Version("1.0.0")
+        inventory_manager.save_versioned_inventory(
+            version=version,
+            instrumentations={
+                "file_format": 0.1,
+                # No 'readme' fields – mirrors today's registry state pre-migration.
+                "libraries": [{"name": "mylib"}, {"name": "other-lib"}],
+            },
+        )
+
+        global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
+        global_readme_dir.mkdir(parents=True, exist_ok=True)
+        kept1 = global_readme_dir / "mylib-abc123def456.md"
+        kept2 = global_readme_dir / "other_lib-ffffff000000.md"
+        kept1.write_text("# Mylib")
+        kept2.write_text("# Other")
+
+        removed = inventory_manager.prune_orphan_readmes()
+
+        # Must return 0 and leave all files intact.
+        assert removed == 0
+        assert kept1.exists()
+        assert kept2.exists()

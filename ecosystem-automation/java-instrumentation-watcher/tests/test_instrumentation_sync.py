@@ -265,7 +265,8 @@ libraries:
             libs = [lib for group in libs_raw.values() for lib in group]
         else:
             libs = libs_raw
-        assert any(lib.get("readme") for lib in libs)
+        assert all(lib.get("readme") for lib in libs)
+        assert inventory_manager.readmes_synced(version)
         mock_client.resolve_ref_to_sha.assert_called_once_with("v2.10.0")
 
     def test_snapshot_sync_writes_readmes(self, mock_client, inventory_manager):
@@ -317,7 +318,8 @@ libraries:
         # instrumentation.yaml should have been updated with readme fields
         loaded = inventory_manager.load_versioned_inventory(version)
         libs = loaded.get("libraries", [])
-        assert any(lib.get("readme") for lib in libs)
+        assert all(lib.get("readme") for lib in libs)
+        assert inventory_manager.readmes_synced(version)
 
     def test_process_latest_release_skips_backfill_when_readmes_exist(self, mock_client, inventory_manager):
         version = Version("2.10.0")
@@ -385,9 +387,10 @@ libraries:
 
         assert version == Version("2.10.0")
         assert inventory_manager.version_exists(version)
-        # Global readme dir should NOT exist when readme fetch fails entirely
+        # Global readme dir should have no README files when fetch fails entirely
         global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
-        assert not global_readme_dir.exists()
+        if global_readme_dir.exists():
+            assert len(list(global_readme_dir.glob("*.md"))) == 0
 
     def test_library_without_source_path_skipped(self, mock_client, inventory_manager):
         yaml_no_source = """
