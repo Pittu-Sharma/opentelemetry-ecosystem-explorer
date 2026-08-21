@@ -14,6 +14,7 @@
 #
 """Base inventory management for versioned artifact storage."""
 
+import json
 import logging
 import re
 import shutil
@@ -219,10 +220,61 @@ class JavaagentInventoryManager(BaseInventoryManager):
 
         return data
 
+    def _get_sync_state_path(self) -> Path:
+        return self.inventory_dir / "readme-sync-state.json"
+
+    def _load_sync_state(self) -> dict[str, Any]:
+        path = self._get_sync_state_path()
+        if not path.exists():
+            return {"synced_versions": [], "failures": {}}
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    data.setdefault("synced_versions", [])
+                    data.setdefault("failures", {})
+                    return data
+        except (OSError, ValueError) as e:
+            logger.warning("Failed to load sync state file: %s", e)
+        return {"synced_versions": [], "failures": {}}
+
+    def _save_sync_state(self, state: dict[str, Any]) -> None:
+        path = self._get_sync_state_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2, sort_keys=True)
+                f.write("\n")
+        except OSError as e:
+            logger.error("Failed to save sync state file: %s", e)
+
     def readmes_synced(self, version: Version) -> bool:
         """Return True if the readmes have been fully synced for this version."""
-        data = self.load_versioned_inventory(version)
-        return bool(data.get("readmes_synced", False))
+        state = self._load_sync_state()
+        return str(version) in state.get("synced_versions", [])
+
+    def get_readme_failures(self, version: Version) -> dict[str, int]:
+        """Get failure counts for libraries in the given version."""
+        state = self._load_sync_state()
+        failures = state.get("failures", {})
+        return failures.get(str(version), {})
+
+    def record_readme_sync(self, version: Version, failures: dict[str, int]) -> None:
+        """Record the sync results. If failures is empty, mark version as synced."""
+        state = self._load_sync_state()
+        synced_versions = set(state.get("synced_versions", []))
+        version_str = str(version)
+
+        if not failures:
+            synced_versions.add(version_str)
+            if "failures" in state and version_str in state["failures"]:
+                del state["failures"][version_str]
+        else:
+            synced_versions.discard(version_str)
+            state.setdefault("failures", {})[version_str] = failures
+
+        state["synced_versions"] = sorted(list(synced_versions))
+        self._save_sync_state(state)
 
     def _sanitize_name(self, name: str) -> str:
         """Sanitizes a name for use as a filename to prevent path traversal."""
@@ -230,7 +282,6 @@ class JavaagentInventoryManager(BaseInventoryManager):
 
     def save_library_readmes(
         self,
-        version: Version,
         readmes: Iterable[tuple[str, str]],  # (library_name, content)
     ) -> dict[str, str]:
         """Write each README content-addressed to global folder. Returns mapping of name to filename."""
@@ -288,6 +339,10 @@ class JavaagentInventoryManager(BaseInventoryManager):
         Remove with the per-version library_readmes/ dirs once every version is
         migrated.
         """
+        # Keys here are *sanitized* names recovered from filenames, unlike _readme_map_from_yaml
+        # which keys by the raw name. Equivalent for all 261 current Java library names; would
+        # diverge for any name containing a character outside [a-zA-Z0-9._-]. Goes away with the
+        # legacy dirs.
         version_readme_dir = self.get_version_dir(version) / self.README_DIR
         if not version_readme_dir.exists():
             return {}
@@ -318,12 +373,9 @@ class JavaagentInventoryManager(BaseInventoryManager):
         Returns:
             Dictionary mapping library names to their markdown content hashes
         """
-        readme_map = self._readme_map_from_yaml(version)
-        if readme_map:
-            return readme_map
-        # Pre-#883 versions have no `readme:` refs.  Remove this branch once
-        # every version directory has been migrated.
-        return self._legacy_readme_map(version)
+        readme_map = self._legacy_readme_map(version)
+        readme_map.update(self._readme_map_from_yaml(version))
+        return readme_map
 
     def load_library_readme_content(self, version: Version, library_name: str, markdown_hash: str) -> str | None:
         """
@@ -369,18 +421,6 @@ class JavaagentInventoryManager(BaseInventoryManager):
         if match:
             return match.group(1), match.group(2)
         return None
-
-    def mark_readmes_synced(self, version: Version) -> None:
-        """
-        Persist a readmes_synced flag for this version inside its instrumentation.yaml.
-
-        Keeping the flag in the YAML (rather than the in-memory instrumentations dict
-        passed through _sync_library_readmes) avoids polluting every instrumentation
-        diff with a fifth top-level key that is only pipeline bookkeeping.
-        """
-        data = self.load_versioned_inventory(version)
-        data["readmes_synced"] = True
-        self.save_versioned_inventory(version, data)
 
     def prune_orphan_readmes(self) -> int:
         """

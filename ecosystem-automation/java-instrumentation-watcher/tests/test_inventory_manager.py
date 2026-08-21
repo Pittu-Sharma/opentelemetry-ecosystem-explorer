@@ -258,24 +258,16 @@ class TestInventoryManager:
 
     def test_readmes_synced_true_when_flag_present(self, inventory_manager):
         version = Version("2.10.0")
-        inventory_manager.save_versioned_inventory(
-            version=version,
-            instrumentations={
-                "file_format": 0.1,
-                "readmes_synced": True,
-                "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}],
-            },
-        )
+        inventory_manager.record_readme_sync(version, {})
         assert inventory_manager.readmes_synced(version)
 
     def test_save_library_readmes_writes_content_addressed_files(self, inventory_manager):
-        version = Version("2.10.0")
         readmes = [
             ("akka-actor-2.3", "# Akka Actor"),
             ("apache-httpclient-4.3", "# Apache HttpClient"),
         ]
 
-        written = inventory_manager.save_library_readmes(version, readmes)
+        written = inventory_manager.save_library_readmes(readmes)
 
         # Returns a dict mapping library name -> filename
         assert isinstance(written, dict)
@@ -290,11 +282,10 @@ class TestInventoryManager:
     def test_save_library_readmes_filename_format(self, inventory_manager):
         from watcher_common.content_hashing import compute_content_hash
 
-        version = Version("2.10.0")
         content = "# Hello"
         expected_hash = compute_content_hash(content)
 
-        written = inventory_manager.save_library_readmes(version, [("mylib-1.0", content)])
+        written = inventory_manager.save_library_readmes([("mylib-1.0", content)])
 
         readme_dir = inventory_manager.inventory_dir / "library_readmes"
         expected_file = readme_dir / f"mylib-1.0-{expected_hash}.md"
@@ -303,11 +294,10 @@ class TestInventoryManager:
         assert written["mylib-1.0"] == f"mylib-1.0-{expected_hash}.md"
 
     def test_save_library_readmes_idempotent(self, inventory_manager):
-        version = Version("2.10.0")
         readmes = [("mylib-1.0", "# Content")]
 
-        first = inventory_manager.save_library_readmes(version, readmes)
-        second = inventory_manager.save_library_readmes(version, readmes)
+        first = inventory_manager.save_library_readmes(readmes)
+        second = inventory_manager.save_library_readmes(readmes)
 
         assert first == second
         assert "mylib-1.0" in first
@@ -315,10 +305,8 @@ class TestInventoryManager:
         assert len(list(readme_dir.glob("*.md"))) == 1
 
     def test_save_library_readmes_different_content_same_name(self, inventory_manager):
-        version = Version("2.10.0")
-
-        first = inventory_manager.save_library_readmes(version, [("mylib-1.0", "# v1")])
-        second = inventory_manager.save_library_readmes(version, [("mylib-1.0", "# v2")])
+        first = inventory_manager.save_library_readmes([("mylib-1.0", "# v1")])
+        second = inventory_manager.save_library_readmes([("mylib-1.0", "# v2")])
 
         assert first["mylib-1.0"] != second["mylib-1.0"]
         readme_dir = inventory_manager.inventory_dir / "library_readmes"
@@ -330,7 +318,7 @@ class TestInventoryManager:
             version=snapshot,
             instrumentations={"file_format": 0.1, "libraries": []},
         )
-        inventory_manager.save_library_readmes(snapshot, [("mylib-1.0", "# Content")])
+        inventory_manager.save_library_readmes([("mylib-1.0", "# Content")])
 
         # Global readme dir should have the file
         global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
@@ -343,6 +331,60 @@ class TestInventoryManager:
         snapshot_dir = inventory_manager.get_version_dir(snapshot)
         assert not snapshot_dir.exists()
         assert len(list(global_readme_dir.glob("*.md"))) == 1
+
+    def test_load_library_readme_map_falls_back_to_legacy_dir(self, inventory_manager):
+        version = Version("2.10.0")
+        inventory_manager.save_versioned_inventory(
+            version=version,
+            instrumentations={
+                "file_format": 0.1,
+                "libraries": [{"name": "mylib"}],
+            },
+        )
+        # Create legacy directory structure: v{version}/library_readmes/
+        legacy_dir = inventory_manager.get_version_dir(version) / "library_readmes"
+        legacy_dir.mkdir(parents=True, exist_ok=True)
+        # Sanitized name key recovered from legacy filename
+        (legacy_dir / "mylib-abc123def456.md").write_text("# content")
+
+        readme_map = inventory_manager.load_library_readme_map(version)
+        assert readme_map == {"mylib": "abc123def456"}
+
+    def test_load_library_readme_content_falls_back_to_version_dir(self, inventory_manager):
+        version = Version("2.10.0")
+        library_name = "mylib"
+        markdown_hash = "abc123def456"
+
+        # Present in version dir, absent from global dir
+        legacy_dir = inventory_manager.get_version_dir(version) / "library_readmes"
+        legacy_dir.mkdir(parents=True, exist_ok=True)
+        (legacy_dir / f"mylib-{markdown_hash}.md").write_text("legacy content")
+
+        content = inventory_manager.load_library_readme_content(version, library_name, markdown_hash)
+        assert content == "legacy content"
+
+    def test_load_library_readme_map_merges_legacy_and_yaml(self, inventory_manager):
+        version = Version("2.10.0")
+        inventory_manager.save_versioned_inventory(
+            version=version,
+            instrumentations={
+                "file_format": 0.1,
+                "libraries": [
+                    {"name": "lib-in-yaml", "readme": "lib_in_yaml-abc123def456.md"},
+                    {"name": "lib-only-legacy"},
+                ],
+            },
+        )
+
+        legacy_dir = inventory_manager.get_version_dir(version) / "library_readmes"
+        legacy_dir.mkdir(parents=True, exist_ok=True)
+        (legacy_dir / "lib-only-legacy-ffffff000000.md").write_text("# legacy")
+
+        readme_map = inventory_manager.load_library_readme_map(version)
+        assert readme_map == {
+            "lib-only-legacy": "ffffff000000",
+            "lib-in-yaml": "abc123def456",
+        }
 
 
 class TestLibraryReadme:

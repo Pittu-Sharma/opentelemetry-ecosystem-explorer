@@ -28,6 +28,7 @@ from .readme_extractor import ReadmeExtractor
 logger = logging.getLogger(__name__)
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_MAX_README_FETCH_ATTEMPTS = 3
 
 
 class InstrumentationSync:
@@ -48,6 +49,7 @@ class InstrumentationSync:
         self.client = client
         self.inventory_manager = inventory_manager
         self.readme_extractor = readme_extractor or ReadmeExtractor(client)
+        self._readme_sync_complete = True
 
     def sync(self) -> dict[str, Any]:
         """
@@ -66,6 +68,8 @@ class InstrumentationSync:
             "snapshot_updated": None,
         }
 
+        self._readme_sync_complete = True
+
         logger.info("Checking for latest release...")
         new_release = self.process_latest_release()
         if new_release:
@@ -79,9 +83,12 @@ class InstrumentationSync:
         summary["snapshot_updated"] = str(snapshot_version)
         logger.info(f"✓ Updated snapshot: {snapshot_version}")
 
-        pruned = self.inventory_manager.prune_orphan_readmes()
-        if pruned > 0:
-            logger.info(f"  Pruned {pruned} orphaned README file(s) from global library_readmes/")
+        if self._readme_sync_complete:
+            pruned = self.inventory_manager.prune_orphan_readmes()
+            if pruned > 0:
+                logger.info(f"  Pruned {pruned} orphaned README file(s) from global library_readmes/")
+        else:
+            logger.warning("  Skipped pruning orphaned README files because readme sync was incomplete")
 
         return summary
 
@@ -100,26 +107,22 @@ class InstrumentationSync:
         if self.inventory_manager.version_exists(version):
             if not self.inventory_manager.readmes_synced(version):
                 instrumentations = self.inventory_manager.load_versioned_inventory(version)
-                all_fetched = self._sync_library_readmes(version, tag_string, instrumentations)
+                self._sync_library_readmes(version, tag_string, instrumentations)
                 self.inventory_manager.save_versioned_inventory(
                     version=version,
                     instrumentations=instrumentations,
                 )
-                if all_fetched:
-                    self.inventory_manager.mark_readmes_synced(version)
             return None
 
         logger.info(f"  Fetching instrumentation list for {tag_string}...")
         yaml_content = self.client.fetch_instrumentation_list(ref=tag_string)
         instrumentations = parse_instrumentation_yaml(yaml_content)
 
-        all_fetched = self._sync_library_readmes(version, tag_string, instrumentations)
+        self._sync_library_readmes(version, tag_string, instrumentations)
         self.inventory_manager.save_versioned_inventory(
             version=version,
             instrumentations=instrumentations,
         )
-        if all_fetched:
-            self.inventory_manager.mark_readmes_synced(version)
 
         return version
 
@@ -161,13 +164,11 @@ class InstrumentationSync:
         if removed > 0:
             logger.info(f"  Removed {removed} old snapshot(s)")
 
-        all_fetched = self._sync_library_readmes(snapshot_version, main_ref, instrumentations)
+        self._sync_library_readmes(snapshot_version, main_ref, instrumentations)
         self.inventory_manager.save_versioned_inventory(
             version=snapshot_version,
             instrumentations=instrumentations,
         )
-        if all_fetched:
-            self.inventory_manager.mark_readmes_synced(snapshot_version)
 
         return snapshot_version
 
@@ -190,6 +191,7 @@ class InstrumentationSync:
             discovered = self.readme_extractor.discover_library_readmes(sha)
         except GithubAPIError as e:
             logger.warning(f"  README discovery failed for {ref}: {e}")
+            self._readme_sync_complete = False
             return False
 
         libraries_raw = instrumentations.get("libraries", [])
@@ -203,24 +205,47 @@ class InstrumentationSync:
             lib["source_path"]: lib["name"] for lib in libraries if lib.get("source_path") and lib.get("name")
         }
 
+        prev_failures = self.inventory_manager.get_readme_failures(version)
+        current_failures = {}
         fetched: list[tuple[str, str]] = []
-        fetch_errors = 0
+
         for source_path, blob_path in discovered.items():
             name = name_by_source.get(source_path)
             if not name:
                 continue
+
+            attempts = prev_failures.get(name, 0)
+            if attempts >= _MAX_README_FETCH_ATTEMPTS:
+                current_failures[name] = attempts
+                logger.info("  Skipping README for %s: reached max fetch attempts (%d)", name, attempts)
+                continue
+
             try:
                 content = self.readme_extractor.fetch_readme(blob_path, sha)
                 fetched.append((name, content))
             except GithubAPIError as e:
-                fetch_errors += 1
-                logger.warning(f"  Skipping README for {name}: {e}")
+                new_attempts = attempts + 1
+                current_failures[name] = new_attempts
+                logger.warning(
+                    "  Skipping README for %s: %s (attempt %d/%d)",
+                    name,
+                    e,
+                    new_attempts,
+                    _MAX_README_FETCH_ATTEMPTS,
+                )
 
-        written_map = self.inventory_manager.save_library_readmes(version, fetched)
+        written_map = self.inventory_manager.save_library_readmes(fetched)
 
         for lib in libraries:
             if lib.get("name") in written_map:
                 lib["readme"] = written_map[lib["name"]]
 
         logger.info(f"  Stored {len(written_map)} library README(s) for v{version}")
-        return fetch_errors == 0
+
+        self.inventory_manager.record_readme_sync(version, current_failures)
+
+        if current_failures:
+            self._readme_sync_complete = False
+            return False
+
+        return True

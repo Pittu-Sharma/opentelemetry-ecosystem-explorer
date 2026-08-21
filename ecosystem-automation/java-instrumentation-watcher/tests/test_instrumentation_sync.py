@@ -143,15 +143,15 @@ instrumentations:
         assert sync.inventory_manager.version_exists(Version("2.10.1-SNAPSHOT"))
 
     def test_sync_no_new_release(self, sync, mock_client, inventory_manager):
-        # Seed version with readmes_synced=True so readmes_synced() returns True
+        # Seed version and sync state so readmes_synced() returns True
         inventory_manager.save_versioned_inventory(
             version=Version("2.10.0"),
             instrumentations={
                 "file_format": 0.1,
-                "readmes_synced": True,
                 "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}],
             },
         )
+        inventory_manager.record_readme_sync(Version("2.10.0"), {})
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
         mock_client.resolve_ref_to_sha.return_value = "sha123"
@@ -323,15 +323,14 @@ libraries:
 
     def test_process_latest_release_skips_backfill_when_readmes_exist(self, mock_client, inventory_manager):
         version = Version("2.10.0")
-        # Version exists and has readmes_synced=True in instrumentation.yaml
         inventory_manager.save_versioned_inventory(
             version=version,
             instrumentations={
                 "file_format": 0.1,
-                "readmes_synced": True,
                 "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}],
             },
         )
+        inventory_manager.record_readme_sync(version, {})
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
 
@@ -362,6 +361,7 @@ libraries:
         assert len(list(global_readme_dir.glob("*.md"))) == 1
         # Because 1 fetch failed, readmes_synced must be False
         assert not inventory_manager.readmes_synced(version)
+        assert inventory_manager.get_readme_failures(version) == {"akka-actor-2.3": 1}
 
         # Retry sync on second run: fetch succeeds for both
         def fetch_side_effect(path, sha):
@@ -374,6 +374,7 @@ libraries:
         # Both READMEs are now written (1 per library) and readmes_synced is set to True
         assert len(list(global_readme_dir.glob("*.md"))) == 2
         assert inventory_manager.readmes_synced(version)
+        assert inventory_manager.get_readme_failures(version) == {}
 
     def test_resolve_ref_failure_does_not_abort_sync(self, mock_client, inventory_manager):
         from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError
@@ -410,4 +411,73 @@ libraries:
         version = sync.process_latest_release()
 
         assert version == Version("2.10.0")
+        mock_client.fetch_raw_file.assert_not_called()
+
+    def test_sync_prunes_orphan_readmes_gated(self, mock_client, inventory_manager):
+        from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError
+
+        mock_client.get_latest_release_tag.return_value = "v2.10.0"
+        mock_client.fetch_instrumentation_list.return_value = self._YAML_WITH_LIBRARIES
+        mock_client.resolve_ref_to_sha.return_value = "sha123"
+        mock_client.fetch_tree.return_value = self._TREE
+
+        # Write an orphan README first
+        global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
+        global_readme_dir.mkdir(parents=True, exist_ok=True)
+        orphan_file = global_readme_dir / "orphan-ffffff000000.md"
+        orphan_file.write_text("# orphan")
+
+        # Mock fetch_raw_file to raise an error
+        mock_client.fetch_raw_file.side_effect = GithubAPIError("API error")
+
+        sync = InstrumentationSync(mock_client, inventory_manager)
+        sync.sync()
+
+        # The orphan readme should NOT be pruned because the sync was incomplete
+        assert orphan_file.exists()
+
+        # Now mock it to succeed
+        mock_client.fetch_raw_file.side_effect = None
+        mock_client.fetch_raw_file.return_value = "# README"
+
+        sync.sync()
+
+        # The orphan readme SHOULD be pruned because the sync completed successfully
+        assert not orphan_file.exists()
+
+    def test_readme_sync_retry_limit(self, mock_client, inventory_manager):
+        from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError
+
+        mock_client.get_latest_release_tag.return_value = "v2.10.0"
+        mock_client.fetch_instrumentation_list.return_value = self._YAML_WITH_LIBRARIES
+        mock_client.resolve_ref_to_sha.return_value = "sha123"
+        mock_client.fetch_tree.return_value = self._TREE
+        mock_client.fetch_raw_file.side_effect = GithubAPIError("timeout")
+
+        sync = InstrumentationSync(mock_client, inventory_manager)
+
+        # Run 1: attempt 1
+        sync.process_latest_release()
+        assert inventory_manager.get_readme_failures(Version("2.10.0")) == {
+            "akka-actor-2.3": 1,
+            "apache-httpclient-4.3": 1,
+        }
+
+        # Run 2: attempt 2
+        sync.process_latest_release()
+        assert inventory_manager.get_readme_failures(Version("2.10.0")) == {
+            "akka-actor-2.3": 2,
+            "apache-httpclient-4.3": 2,
+        }
+
+        # Run 3: attempt 3
+        sync.process_latest_release()
+        assert inventory_manager.get_readme_failures(Version("2.10.0")) == {
+            "akka-actor-2.3": 3,
+            "apache-httpclient-4.3": 3,
+        }
+
+        # Run 4: limit reached, should skip calling fetch_raw_file entirely
+        mock_client.fetch_raw_file.reset_mock()
+        sync.process_latest_release()
         mock_client.fetch_raw_file.assert_not_called()
