@@ -39,7 +39,6 @@ const COMPONENT_TYPES = [
   { type: "connector", icon: Workflow },
 ] as const;
 
-
 const RESOURCES = [
   {
     key: "officialDocs",
@@ -65,7 +64,6 @@ const RESOURCES = [
 
 type CollectorComponentType = (typeof COMPONENT_TYPES)[number]["type"];
 
-
 interface CollectorLandingStats {
   byDistribution: Record<string, number>;
   byType: Record<CollectorComponentType, number>;
@@ -83,7 +81,6 @@ function emptyTypeCounts(): Record<CollectorComponentType, number> {
     connector: 0,
   };
 }
-
 
 function isComponentType(value: unknown): value is CollectorComponentType {
   return typeof value === "string" && COMPONENT_TYPES.some(({ type }) => type === value);
@@ -258,10 +255,16 @@ export function CollectorExploreLanding() {
                       defaultValue: t("explore.distributions.items.generic.desc"),
                     })}
                   </p>
-                  {t(`explore.distributions.items.${distribution}.notice`, { defaultValue: "" }) && (
+                  {t(`explore.distributions.items.${distribution}.notice`, {
+                    defaultValue: "",
+                  }) && (
                     <div className="bg-warning/10 text-warning-foreground border-warning/20 mb-4 flex items-start gap-2 rounded-md border p-3 text-sm">
                       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                      <p>{t(`explore.distributions.items.${distribution}.notice`, { defaultValue: "" })}</p>
+                      <p>
+                        {t(`explore.distributions.items.${distribution}.notice`, {
+                          defaultValue: "",
+                        })}
+                      </p>
                     </div>
                   )}
                   <Link
@@ -304,7 +307,9 @@ export function CollectorExploreLanding() {
               <dt className="text-muted-foreground text-sm font-medium">
                 {t("explore.distributions.heading")}
               </dt>
-              <dd className="text-foreground mt-1 text-3xl font-bold">{stats.distributions.length}</dd>
+              <dd className="text-foreground mt-1 text-3xl font-bold">
+                {stats.distributions.length}
+              </dd>
             </div>
           </dl>
         </section>

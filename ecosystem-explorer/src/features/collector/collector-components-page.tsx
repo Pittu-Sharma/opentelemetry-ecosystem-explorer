@@ -35,7 +35,11 @@ import { BackButton } from "@/components/ui/back-button";
 import { GlowBadge } from "@/components/ui/glow-badge";
 import { DetailCard } from "@/components/ui/detail-card";
 import { SignalBadge } from "@/components/ui/signal-badge";
-import { useCollectorVersions, useCollectorComponents } from "@/hooks/use-collector-data";
+import {
+  useCollectorVersions,
+  useCollectorComponents,
+  useCollectorIndex,
+} from "@/hooks/use-collector-data";
 import { getPresentSignals, SIGNAL_ORDER, type CollectorSignal } from "./utils/signal-badge-info";
 import { SIGNAL_STYLES, getSignalFilterClasses } from "./styles/signal-styles";
 import type { Stability } from "@/types/collector";
@@ -150,6 +154,13 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
     if (urlVersion) return urlVersion;
     return versionData?.versions.find((v) => v.is_latest)?.version || "";
   }, [urlVersion, versionData]);
+
+  const { data: collectorIndex } = useCollectorIndex();
+
+  const distributionOptions = useMemo(
+    () => collectorIndex?.taxonomy.distributions ?? [],
+    [collectorIndex]
+  );
 
   const {
     data: components,
@@ -383,10 +394,11 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
                   className="border-border/60 bg-background/80 focus:border-primary/50 focus:ring-primary/20 w-[160px] cursor-pointer appearance-none rounded-lg border py-2.5 pr-10 pl-3 text-sm font-medium backdrop-blur-sm transition-all duration-200 focus:ring-2 focus:outline-none"
                 >
                   <option value="all">{t("filters.distribution.all")}</option>
-                  <option value="core">{t("filters.distribution.core")}</option>
-                  <option value="contrib">{t("filters.distribution.contrib")}</option>
-                  <option value="k8s">{t("filters.distribution.k8s")}</option>
-                  <option value="otlp">{t("filters.distribution.otlp")}</option>
+                  {distributionOptions.map((dist) => (
+                    <option key={dist} value={dist}>
+                      {t(`filters.distribution.${dist}`, { defaultValue: dist })}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown
                   className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2"

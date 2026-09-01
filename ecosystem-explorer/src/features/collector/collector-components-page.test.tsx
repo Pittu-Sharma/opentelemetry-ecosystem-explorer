@@ -19,12 +19,17 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CollectorComponentsPage } from "./collector-components-page";
-import { useCollectorComponents, useCollectorVersions } from "@/hooks/use-collector-data";
+import {
+  useCollectorComponents,
+  useCollectorVersions,
+  useCollectorIndex,
+} from "@/hooks/use-collector-data";
 import type { IndexComponent } from "@/types/collector";
 
 vi.mock("@/hooks/use-collector-data", () => ({
   useCollectorComponents: vi.fn(),
   useCollectorVersions: vi.fn(),
+  useCollectorIndex: vi.fn(),
 }));
 
 const mockComponents: IndexComponent[] = [
@@ -101,6 +106,15 @@ describe("CollectorComponentsPage", () => {
           { version: "0.150.0", is_latest: true },
           { version: "0.149.0", is_latest: false },
         ],
+      },
+      loading: false,
+      error: null,
+    });
+    vi.mocked(useCollectorIndex).mockReturnValue({
+      data: {
+        ecosystem: "collector",
+        taxonomy: { distributions: ["core", "contrib"], types: [] },
+        components: [],
       },
       loading: false,
       error: null,
