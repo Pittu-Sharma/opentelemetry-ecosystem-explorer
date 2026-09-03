@@ -25,9 +25,7 @@ from explorer_db_builder.main import (
     run_builder,
     run_javaagent_builder,
 )
-from java_instrumentation_watcher.inventory_manager import InventoryManager
 from semantic_version import Version
-from watcher_common.content_hashing import compute_content_hash
 
 
 @pytest.fixture
@@ -507,59 +505,46 @@ class TestRunJavaagentBuilder:
     def test_run_javaagent_builder_with_real_inventory_manager(self, tmp_path):
         """Integration test: real InventoryManager + real DatabaseWriter.
 
-        Seeds the inventory with a production-shaped registry (instrumentation.yaml
-        has a 'readme' field, global library_readmes/ contains the file), then
-        asserts that markdown_hash ends up in the DB-writer output — no mocks.
+        Seeds the inventory with a pre-migration production-shaped registry
+        (instrumentation.yaml has NO 'readme' field, files live in per-version
+        library_readmes/ dir), then asserts that markdown_hash lands on the output.
         """
-        import tempfile
+        from java_instrumentation_watcher.inventory_manager import InventoryManager
+        from watcher_common.content_hashing import compute_content_hash
 
-        with tempfile.TemporaryDirectory() as inv_dir:
-            inventory_manager = InventoryManager(inventory_dir=inv_dir)
-            version = Version("2.10.0")
+        inventory_dir = str(tmp_path / "registry")
+        inventory_manager = InventoryManager(inventory_dir=inventory_dir)
+        version = Version("2.10.0")
 
-            readme_content = "# Akka Actor\n\nReal readme content."
-            readme_hash = compute_content_hash(readme_content)
-            readme_filename = f"akka-actor-2.3-{readme_hash}.md"
+        readme_content = "# Akka Actor\n\nReal readme content."
+        readme_hash = compute_content_hash(readme_content)
+        readme_filename = f"akka-actor-2.3-{readme_hash}.md"
 
-            # Write README into global library_readmes/ directory
-            global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
-            global_readme_dir.mkdir(parents=True, exist_ok=True)
-            (global_readme_dir / readme_filename).write_text(readme_content, encoding="utf-8")
+        # Legacy pre-migration shape: file under v{version}/library_readmes/ and no 'readme:' ref in YAML
+        legacy_dir = inventory_manager.get_version_dir(version) / "library_readmes"
+        legacy_dir.mkdir(parents=True, exist_ok=True)
+        (legacy_dir / readme_filename).write_text(readme_content, encoding="utf-8")
 
-            # Seed instrumentation.yaml with 'readme' field pointing at that file
-            inventory_manager.save_versioned_inventory(
-                version=version,
-                instrumentations={
-                    "file_format": 0.1,
-                    "libraries": [
-                        {
-                            "name": "akka-actor-2.3",
-                            "readme": readme_filename,
-                        }
-                    ],
-                },
-            )
-            # Mark as synced so the builder doesn't skip it
-            inventory_manager.record_readme_sync(version, {})
+        inventory_manager.save_versioned_inventory(
+            version=version,
+            instrumentations={
+                "file_format": 0.1,
+                "libraries": [{"name": "akka-actor-2.3"}],
+            },
+        )
 
-            db_writer = DatabaseWriter(database_dir=str(tmp_path / "db"))
-            exit_code = run_javaagent_builder(inventory_manager, db_writer)
+        db_writer = DatabaseWriter(database_dir=str(tmp_path / "db"))
+        exit_code = run_javaagent_builder(inventory_manager, db_writer)
 
-            assert exit_code == 0
+        assert exit_code == 0
+        db_file = tmp_path / "db" / "markdown" / f"akka-actor-2.3-{readme_hash}.md"
+        assert db_file.exists()
 
-            # Assert that markdown_hash landed on the instrumentation JSON
-            instr_dir = tmp_path / "db" / "instrumentations" / "akka-actor-2.3"
-            json_files = list(instr_dir.glob("*.json"))
-            assert json_files, "Expected at least one instrumentation JSON file to be written"
-
-            written = json.loads(json_files[0].read_text(encoding="utf-8"))
-            assert written.get("markdown_hash") == readme_hash, (
-                f"Expected markdown_hash={readme_hash!r}, got {written.get('markdown_hash')!r}"
-            )
-
-            # Also confirm the markdown file itself was written to the DB
-            md_file = tmp_path / "db" / "markdown" / f"akka-actor-2.3-{readme_hash}.md"
-            assert md_file.exists(), "Markdown file was not written to the DB"
+        inst_dir = tmp_path / "db" / "instrumentations" / "akka-actor-2.3"
+        inst_files = list(inst_dir.glob("*.json"))
+        assert len(inst_files) == 1
+        inst_data = json.loads(inst_files[0].read_text(encoding="utf-8"))
+        assert inst_data["markdown_hash"] == readme_hash
 
 
 class TestMain:

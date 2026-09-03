@@ -367,7 +367,7 @@ export function CollectorDetailPage() {
                         {t("detail.sections.linksResources")}
                       </h2>
                       <a
-                        href={`https://github.com/open-telemetry/${component.repository}/tree/${deprecatedView ? `v${version}` : "main"}/${component.type}/${component.name}`}
+                        href={`https://github.com/open-telemetry/${component.repository}/tree/${deprecatedView || rawVersion ? `v${version}` : "main"}/${component.type}/${component.name}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="border-border/50 hover:bg-muted/50 group flex items-center gap-3 rounded-lg border p-3 transition-colors"

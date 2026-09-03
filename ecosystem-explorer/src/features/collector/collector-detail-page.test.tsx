@@ -459,4 +459,46 @@ describe("CollectorDetailPage", () => {
     expect(screen.getByText("Stability Levels")).toBeInTheDocument();
     expect(screen.queryByText("Distribution Availability")).not.toBeInTheDocument();
   });
+
+  it("View Source Code link points to the main branch when no version is explicitly selected", () => {
+    vi.mocked(useCollectorVersions).mockReturnValue({
+      data: { versions: [{ version: "0.150.0", is_latest: true }] },
+      loading: false,
+      error: null,
+    });
+    vi.mocked(useCollectorComponent).mockReturnValue({
+      data: mockComponentWithoutTelemetry,
+      loading: false,
+      error: null,
+    });
+
+    renderAtRoute("/collector/components/core/otlpreceiver");
+
+    const sourceLink = screen.getByRole("link", { name: /source code/i });
+    expect(sourceLink).toHaveAttribute(
+      "href",
+      "https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver/otlpreceiver"
+    );
+  });
+
+  it("View Source Code link points to the specific v-tagged branch when a version is explicitly selected", () => {
+    vi.mocked(useCollectorVersions).mockReturnValue({
+      data: { versions: [{ version: "0.150.0", is_latest: true }] },
+      loading: false,
+      error: null,
+    });
+    vi.mocked(useCollectorComponent).mockReturnValue({
+      data: mockComponentWithoutTelemetry,
+      loading: false,
+      error: null,
+    });
+
+    renderAtRoute("/collector/components/core/otlpreceiver?version=0.150.0");
+
+    const sourceLink = screen.getByRole("link", { name: /source code/i });
+    expect(sourceLink).toHaveAttribute(
+      "href",
+      "https://github.com/open-telemetry/opentelemetry-collector/tree/v0.150.0/receiver/otlpreceiver"
+    );
+  });
 });

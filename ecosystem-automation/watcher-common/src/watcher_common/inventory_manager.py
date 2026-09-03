@@ -152,6 +152,8 @@ class JavaagentInventoryManager(BaseInventoryManager):
 
     FILE_NAME = "instrumentation.yaml"
     README_DIR = "library_readmes"
+    SYNC_STATE_FILE = "readme-sync-state.json"
+    MAX_README_FETCH_ATTEMPTS = 3
 
     def __init__(self, inventory_dir: str = "ecosystem-registry/java/javaagent"):
         """
@@ -220,61 +222,74 @@ class JavaagentInventoryManager(BaseInventoryManager):
 
         return data
 
-    def _get_sync_state_path(self) -> Path:
-        return self.inventory_dir / "readme-sync-state.json"
+    # --- README sync state (readme-sync-state.json) ---
 
-    def _load_sync_state(self) -> dict[str, Any]:
-        path = self._get_sync_state_path()
+    def _load_readme_sync_state(self) -> dict[str, Any]:
+        """Load the README sync state from readme-sync-state.json.
+
+        The file is git-tracked and persists between CI runs.
+        Returns an empty dict if the file does not exist or cannot be parsed.
+        """
+        path = self.inventory_dir / self.SYNC_STATE_FILE
         if not path.exists():
-            return {"synced_versions": [], "failures": {}}
+            return {}
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-                if isinstance(data, dict):
-                    data.setdefault("synced_versions", [])
-                    data.setdefault("failures", {})
-                    return data
+            return data if isinstance(data, dict) else {}
         except (OSError, ValueError) as e:
-            logger.warning("Failed to load sync state file: %s", e)
-        return {"synced_versions": [], "failures": {}}
+            logger.warning("Failed to load readme sync state: %s", e)
+            return {}
 
-    def _save_sync_state(self, state: dict[str, Any]) -> None:
-        path = self._get_sync_state_path()
+    def _save_readme_sync_state(self, state: dict[str, Any]) -> None:
+        """Persist the README sync state to readme-sync-state.json.
+
+        Uses sort_keys=True and a trailing newline so diffs are deterministic
+        (AGENTS.md requirement).
+        """
+        path = self.inventory_dir / self.SYNC_STATE_FILE
         path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(state, f, indent=2, sort_keys=True)
                 f.write("\n")
         except OSError as e:
-            logger.error("Failed to save sync state file: %s", e)
+            logger.error("Failed to save readme sync state: %s", e)
 
     def readmes_synced(self, version: Version) -> bool:
-        """Return True if the readmes have been fully synced for this version."""
-        state = self._load_sync_state()
-        return str(version) in state.get("synced_versions", [])
+        """Return True if READMEs have been fully synced for this version.
+
+        Reads from readme-sync-state.json (not instrumentation.yaml).
+        """
+        return bool(self._load_readme_sync_state().get(str(version), {}).get("synced", False))
 
     def get_readme_failures(self, version: Version) -> dict[str, int]:
-        """Get failure counts for libraries in the given version."""
-        state = self._load_sync_state()
-        failures = state.get("failures", {})
-        return failures.get(str(version), {})
+        """Return per-library failure counts for the given version.
 
-    def record_readme_sync(self, version: Version, failures: dict[str, int]) -> None:
-        """Record the sync results. If failures is empty, mark version as synced."""
-        state = self._load_sync_state()
-        synced_versions = set(state.get("synced_versions", []))
-        version_str = str(version)
+        Returns an empty dict if no failures have been recorded.
+        """
+        state = self._load_readme_sync_state()
+        return state.get(str(version), {}).get("failed", {})
 
-        if not failures:
-            synced_versions.add(version_str)
-            if "failures" in state and version_str in state["failures"]:
-                del state["failures"][version_str]
-        else:
-            synced_versions.discard(version_str)
-            state.setdefault("failures", {})[version_str] = failures
+    def record_readme_sync(self, version: Version, failed: dict[str, int]) -> None:
+        """Record sync results for a version.
 
-        state["synced_versions"] = sorted(list(synced_versions))
-        self._save_sync_state(state)
+        Args:
+            version: Version that was synced
+            failed: mapping of library name -> consecutive failed fetch attempts.
+
+        A version is considered synced once every remaining failure has exhausted
+        its retries (MAX_README_FETCH_ATTEMPTS). Libraries that have been given up
+        on are not retryable and do not block the "synced" flag.
+        """
+        retryable = {name: count for name, count in failed.items() if count < self.MAX_README_FETCH_ATTEMPTS}
+        synced = not retryable
+
+        state = self._load_readme_sync_state()
+        state[str(version)] = {"synced": synced, "failed": failed}
+        self._save_readme_sync_state(state)
+
+    # --- README file storage ---
 
     def _sanitize_name(self, name: str) -> str:
         """Sanitizes a name for use as a filename to prevent path traversal."""
@@ -284,10 +299,18 @@ class JavaagentInventoryManager(BaseInventoryManager):
         self,
         readmes: Iterable[tuple[str, str]],  # (library_name, content)
     ) -> dict[str, str]:
-        """Write each README content-addressed to global folder. Returns mapping of name to filename."""
+        """Write each README content-addressed to the global library_readmes/ dir.
+
+        Args:
+            readmes: Iterable of (library_name, markdown_content) pairs.
+
+        Returns:
+            Mapping of library_name -> filename for every README processed
+            (whether newly written or already present).
+        """
         target_dir = self.inventory_dir / self.README_DIR
         target_dir.mkdir(parents=True, exist_ok=True)
-        written = {}
+        written: dict[str, str] = {}
         for name, content in readmes:
             digest = compute_content_hash(content)
             safe_name = self._sanitize_name(name)
@@ -299,11 +322,11 @@ class JavaagentInventoryManager(BaseInventoryManager):
         return written
 
     def _readme_map_from_yaml(self, version: Version) -> dict[str, str]:
-        """
-        Build a map of library_name -> markdown_hash by reading the 'readme'
+        """Build a map of library_name -> markdown_hash by reading the 'readme'
         field from the version's instrumentation.yaml.
 
         Returns an empty dict if no library has a 'readme' field (pre-#883 state).
+        Keys are the *raw* library names as stored in the YAML (not sanitized).
         """
         data = self.load_versioned_inventory(version)
         libraries_raw = data.get("libraries", [])
@@ -312,7 +335,7 @@ class JavaagentInventoryManager(BaseInventoryManager):
         else:
             libraries = libraries_raw
 
-        readme_map = {}
+        readme_map: dict[str, str] = {}
         for lib in libraries:
             readme_file = lib.get("readme")
             if readme_file:
@@ -331,18 +354,18 @@ class JavaagentInventoryManager(BaseInventoryManager):
         return readme_map
 
     def _legacy_readme_map(self, version: Version) -> dict[str, str]:
-        """
-        Fallback for pre-#883 versions: build a map of library_name -> markdown_hash
+        """Fallback for pre-#883 versions: build a map of library_name -> markdown_hash
         by scanning the per-version library_readmes directory on disk.
 
         Tie-break on sorted filename when multiple files exist for the same name.
         Remove with the per-version library_readmes/ dirs once every version is
         migrated.
+
+        Note: Keys here are *sanitized* names recovered from filenames, unlike
+        _readme_map_from_yaml which keys by the raw name. Equivalent for all 261
+        current Java library names; would diverge for any name containing a character
+        outside [a-zA-Z0-9._-]. Goes away with the legacy dirs.
         """
-        # Keys here are *sanitized* names recovered from filenames, unlike _readme_map_from_yaml
-        # which keys by the raw name. Equivalent for all 261 current Java library names; would
-        # diverge for any name containing a character outside [a-zA-Z0-9._-]. Goes away with the
-        # legacy dirs.
         version_readme_dir = self.get_version_dir(version) / self.README_DIR
         if not version_readme_dir.exists():
             return {}
@@ -356,16 +379,19 @@ class JavaagentInventoryManager(BaseInventoryManager):
             if parsed:
                 name, markdown_hash = parsed
                 readme_map[name] = markdown_hash
+            else:
+                logger.warning("Malformed README filename in %s: %s", version, item.name)
         return readme_map
 
     def load_library_readme_map(self, version: Version) -> dict[str, str]:
-        """
-        Build a map of library_name -> markdown_hash for a given version.
+        """Build a map of library_name -> markdown_hash for a given version.
 
-        Tries the new path first (reads 'readme' refs from instrumentation.yaml).
-        Falls back to the legacy per-version library_readmes/ directory for
-        pre-#883 versions that have no 'readme' fields yet.  Remove the fallback
-        after every version has been migrated.
+        Merges the legacy per-version directory scan with the new YAML-backed
+        lookup (YAML wins on conflict). This handles the partially-migrated case
+        where some libraries have 'readme:' refs and others only have files in
+        the old v{version}/library_readmes/ directory.
+
+        Remove the merge / legacy branch after every version has been migrated.
 
         Args:
             version: Version to scan
@@ -378,16 +404,14 @@ class JavaagentInventoryManager(BaseInventoryManager):
         return readme_map
 
     def load_library_readme_content(self, version: Version, library_name: str, markdown_hash: str) -> str | None:
-        """
-        Load the content of a specific library README.
+        """Load the content of a specific library README.
 
-        Tries the global library_readmes/ directory first (post-#883 path).
-        Falls back to the per-version library_readmes/ directory for versions
-        that have not yet been migrated.  Remove the fallback once every version
-        directory has been cleaned up.
+        Tries the global library_readmes/ directory first (post-#883 location),
+        then falls back to the per-version v{version}/library_readmes/ directory
+        for pre-#883 versions. Remove the fallback after migrating all versions.
 
         Args:
-            version: Version to load from (used only for the legacy fallback)
+            version: Version to load from (used only for the legacy fallback path)
             library_name: Name of the library
             markdown_hash: Content hash of the markdown
 
@@ -397,20 +421,71 @@ class JavaagentInventoryManager(BaseInventoryManager):
         safe_name = self._sanitize_name(library_name)
         filename = f"{safe_name}-{markdown_hash}.md"
 
-        # New (global) path.
-        file_path = self.inventory_dir / self.README_DIR / filename
-        if not file_path.exists():
-            # Legacy per-version path – pre-#883 layout.
-            file_path = self.get_version_dir(version) / self.README_DIR / filename
+        # Try global directory first (post-#883).
+        global_path = self.inventory_dir / self.README_DIR / filename
+        if global_path.exists():
+            try:
+                return global_path.read_text(encoding="utf-8")
+            except OSError as e:
+                logger.error("Failed to read README file '%s': %s", global_path, e)
+                return None
 
-        if not file_path.exists():
-            return None
+        # Fallback: per-version directory (pre-#883 legacy location).
+        # Remove once every version has been migrated.
+        legacy_path = self.get_version_dir(version) / self.README_DIR / filename
+        if legacy_path.exists():
+            try:
+                return legacy_path.read_text(encoding="utf-8")
+            except OSError as e:
+                logger.error("Failed to read README file '%s': %s", legacy_path, e)
+                return None
 
-        try:
-            return file_path.read_text(encoding="utf-8")
-        except OSError as e:
-            logger.error("Failed to read README file '%s': %s", file_path, e)
-            return None
+        return None
+
+    def prune_orphan_readmes(self) -> int:
+        """Delete README files in the global library_readmes/ dir that are no
+        longer referenced by any version's instrumentation.yaml.
+
+        Safety: returns 0 without touching anything if no version references any
+        README (i.e., during the pre-migration period before any 'readme:' refs
+        have been written). Only walks the 'libraries' key, not 'custom'.
+
+        Returns:
+            Number of files deleted.
+        """
+        global_readme_dir = self.inventory_dir / self.README_DIR
+        if not global_readme_dir.exists():
+            return 0
+
+        # Collect all filenames referenced by any version.
+        referenced_files: set[str] = set()
+        for version in self.list_versions():
+            data = self.load_versioned_inventory(version)
+            libraries_raw = data.get("libraries", [])
+            if isinstance(libraries_raw, dict):
+                libraries = [lib for group in libraries_raw.values() for lib in group]
+            else:
+                libraries = libraries_raw or []
+            for lib in libraries:
+                readme_file = lib.get("readme")
+                if readme_file:
+                    referenced_files.add(readme_file)
+
+        # Safety: if nothing references any file yet, skip pruning entirely.
+        if not referenced_files:
+            return 0
+
+        pruned = 0
+        for item in list(global_readme_dir.iterdir()):
+            if item.is_file() and item.suffix == ".md" and item.name not in referenced_files:
+                try:
+                    item.unlink()
+                    pruned += 1
+                    logger.info("Pruned orphaned README: %s", item.name)
+                except OSError as e:
+                    logger.warning("Failed to prune README '%s': %s", item.name, e)
+
+        return pruned
 
     def _parse_readme_filename(self, filename: str) -> tuple[str, str] | None:
         """
@@ -421,50 +496,3 @@ class JavaagentInventoryManager(BaseInventoryManager):
         if match:
             return match.group(1), match.group(2)
         return None
-
-    def prune_orphan_readmes(self) -> int:
-        """
-        Removes any readme files in the global library_readmes directory
-        that are not referenced by any version's instrumentation.yaml.
-
-        Only inspects entries under the 'libraries' key, not 'custom'.
-        Returns 0 (and removes nothing) when no version references any README,
-        which is the state of the registry before migration – deleting every
-        file in that case would be wrong.
-
-        Returns:
-            Number of files removed
-        """
-        readme_dir = self.inventory_dir / self.README_DIR
-        if not readme_dir.exists():
-            return 0
-
-        referenced_files: set[str] = set()
-        for version in self.list_versions():
-            data = self.load_versioned_inventory(version)
-            libraries_raw = data.get("libraries", [])
-
-            if isinstance(libraries_raw, dict):
-                libraries = [lib for group in libraries_raw.values() for lib in group]
-            else:
-                libraries = libraries_raw
-
-            for lib in libraries:
-                if readme_file := lib.get("readme"):
-                    referenced_files.add(readme_file)
-
-        # Guard: if no version references any README (e.g. pre-migration registry),
-        # do NOT touch the directory – deleting everything would be destructive.
-        if not referenced_files:
-            return 0
-
-        removed = 0
-        for item in readme_dir.iterdir():
-            if item.is_file() and item.suffix == ".md" and item.name not in referenced_files:
-                try:
-                    item.unlink()
-                    removed += 1
-                except OSError as e:
-                    logger.warning("Failed to delete orphaned README %s: %s", item, e)
-
-        return removed

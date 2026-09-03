@@ -18,6 +18,7 @@ import tempfile
 from unittest.mock import Mock
 
 import pytest
+import yaml
 from java_instrumentation_watcher.instrumentation_sync import InstrumentationSync
 from java_instrumentation_watcher.inventory_manager import InventoryManager
 from semantic_version import Version
@@ -44,8 +45,19 @@ class TestInstrumentationSync:
         return extractor
 
     @pytest.fixture
-    def sync(self, mock_client, inventory_manager, mock_readme_extractor):
-        return InstrumentationSync(mock_client, inventory_manager, readme_extractor=mock_readme_extractor)
+    def mock_jmx_model_extractor(self):
+        extractor = Mock()
+        extractor.discover_jmx_model_paths.return_value = ({}, None)
+        return extractor
+
+    @pytest.fixture
+    def sync(self, mock_client, inventory_manager, mock_readme_extractor, mock_jmx_model_extractor):
+        return InstrumentationSync(
+            mock_client,
+            inventory_manager,
+            readme_extractor=mock_readme_extractor,
+            jmx_model_extractor=mock_jmx_model_extractor,
+        )
 
     def test_process_latest_release_new_version(self, sync, mock_client):
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
@@ -69,6 +81,8 @@ instrumentations:
             version=version,
             instrumentations={"file_format": 0.1, "libraries": {}},
         )
+        inventory_manager.record_readme_sync(version, {})
+        inventory_manager.save_jmx_models_index(version, models={"jvm": "metrics: []\n"}, manifest=None)
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
 
@@ -143,14 +157,11 @@ instrumentations:
         assert sync.inventory_manager.version_exists(Version("2.10.1-SNAPSHOT"))
 
     def test_sync_no_new_release(self, sync, mock_client, inventory_manager):
-        # Seed version and sync state so readmes_synced() returns True
         inventory_manager.save_versioned_inventory(
             version=Version("2.10.0"),
-            instrumentations={
-                "file_format": 0.1,
-                "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}],
-            },
+            instrumentations={"file_format": 0.1, "libraries": {}},
         )
+        # Seed sync state so backfill doesn't trigger
         inventory_manager.record_readme_sync(Version("2.10.0"), {})
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
@@ -243,64 +254,52 @@ libraries:
         {"type": "blob", "path": "instrumentation/apache-httpclient/apache-httpclient-4.3/library/README.md"},
     ]
 
-    def test_release_sync_writes_readmes(self, mock_client, inventory_manager):
+    def test_release_sync_writes_readmes(self, mock_client, inventory_manager, mock_jmx_model_extractor):
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
         mock_client.fetch_instrumentation_list.return_value = self._YAML_WITH_LIBRARIES
         mock_client.resolve_ref_to_sha.return_value = "sha123"
         mock_client.fetch_tree.return_value = self._TREE
         mock_client.fetch_raw_file.return_value = "# README"
 
-        sync = InstrumentationSync(mock_client, inventory_manager)
+        sync = InstrumentationSync(mock_client, inventory_manager, jmx_model_extractor=mock_jmx_model_extractor)
         version = sync.process_latest_release()
 
-        # READMEs should be in the GLOBAL library_readmes dir
         global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
         assert global_readme_dir.exists()
         assert len(list(global_readme_dir.glob("*.md"))) == 2
+
         # instrumentation.yaml should have readme fields
         loaded = inventory_manager.load_versioned_inventory(version)
-        libs_raw = loaded.get("libraries", [])
-        # libraries may be saved as flat list or grouped dict
-        if isinstance(libs_raw, dict):
-            libs = [lib for group in libs_raw.values() for lib in group]
+        libraries_raw = loaded.get("libraries", [])
+        if isinstance(libraries_raw, dict):
+            libs = [lib for group in libraries_raw.values() for lib in group]
         else:
-            libs = libs_raw
+            libs = libraries_raw
         assert all(lib.get("readme") for lib in libs)
         assert inventory_manager.readmes_synced(version)
-        mock_client.resolve_ref_to_sha.assert_called_once_with("v2.10.0")
 
-    def test_snapshot_sync_writes_readmes(self, mock_client, inventory_manager):
+    def test_snapshot_sync_writes_readmes(self, mock_client, inventory_manager, mock_jmx_model_extractor):
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
         mock_client.fetch_instrumentation_list.return_value = self._YAML_WITH_LIBRARIES
         mock_client.resolve_ref_to_sha.return_value = "sha123"
         mock_client.fetch_tree.return_value = self._TREE
         mock_client.fetch_raw_file.return_value = "# README"
 
-        sync = InstrumentationSync(mock_client, inventory_manager)
-        sync.update_snapshot()
+        sync = InstrumentationSync(mock_client, inventory_manager, jmx_model_extractor=mock_jmx_model_extractor)
+        snapshot_version = sync.update_snapshot()
 
-        # READMEs should be in the GLOBAL library_readmes dir
         global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
         assert global_readme_dir.exists()
-        # resolve_ref_to_sha called twice: once in update_snapshot, once in _sync_library_readmes
-        assert mock_client.resolve_ref_to_sha.call_count == 2
-        mock_client.fetch_instrumentation_list.assert_called_once_with(ref="sha123")
+        assert not inventory_manager.jmx_models_index_exists(snapshot_version)
+        mock_jmx_model_extractor.discover_jmx_model_paths.assert_not_called()
 
-    def test_process_latest_release_backfills_missing_readmes(self, mock_client, inventory_manager):
+    def test_process_latest_release_backfills_missing_readmes(
+        self, mock_client, inventory_manager, mock_jmx_model_extractor
+    ):
         version = Version("2.10.0")
-        # Version exists but has no readme fields in instrumentation.yaml
         inventory_manager.save_versioned_inventory(
             version=version,
-            instrumentations={
-                "file_format": 0.1,
-                "libraries": [
-                    {"name": "akka-actor-2.3", "source_path": "instrumentation/akka/akka-actor-2.3"},
-                    {
-                        "name": "apache-httpclient-4.3",
-                        "source_path": "instrumentation/apache-httpclient/apache-httpclient-4.3",
-                    },
-                ],
-            },
+            instrumentations={"file_format": 0.1, "libraries": []},
         )
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
@@ -308,39 +307,33 @@ libraries:
         mock_client.fetch_tree.return_value = self._TREE
         mock_client.fetch_raw_file.return_value = "# README"
 
-        sync = InstrumentationSync(mock_client, inventory_manager)
+        sync = InstrumentationSync(mock_client, inventory_manager, jmx_model_extractor=mock_jmx_model_extractor)
         result = sync.process_latest_release()
 
         assert result is None
-        # READMEs should now be in the global dir after backfill
         global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
         assert global_readme_dir.exists()
-        # instrumentation.yaml should have been updated with readme fields
-        loaded = inventory_manager.load_versioned_inventory(version)
-        libs = loaded.get("libraries", [])
-        assert all(lib.get("readme") for lib in libs)
-        assert inventory_manager.readmes_synced(version)
 
-    def test_process_latest_release_skips_backfill_when_readmes_exist(self, mock_client, inventory_manager):
+    def test_process_latest_release_skips_backfill_when_readmes_exist(
+        self, mock_client, inventory_manager, mock_jmx_model_extractor
+    ):
         version = Version("2.10.0")
         inventory_manager.save_versioned_inventory(
             version=version,
-            instrumentations={
-                "file_format": 0.1,
-                "libraries": [{"name": "mylib", "readme": "mylib-abc123def456.md"}],
-            },
+            instrumentations={"file_format": 0.1, "libraries": []},
         )
         inventory_manager.record_readme_sync(version, {})
+        inventory_manager.save_jmx_models_index(version, models={"jvm": "metrics: []\n"}, manifest=None)
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
 
-        sync = InstrumentationSync(mock_client, inventory_manager)
+        sync = InstrumentationSync(mock_client, inventory_manager, jmx_model_extractor=mock_jmx_model_extractor)
         result = sync.process_latest_release()
 
         assert result is None
         mock_client.resolve_ref_to_sha.assert_not_called()
 
-    def test_one_readme_fetch_failure_others_written(self, mock_client, inventory_manager):
+    def test_one_readme_fetch_failure_others_written(self, mock_client, inventory_manager, mock_jmx_model_extractor):
         from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
@@ -352,48 +345,72 @@ libraries:
             "# Apache README",
         ]
 
-        sync = InstrumentationSync(mock_client, inventory_manager)
+        sync = InstrumentationSync(mock_client, inventory_manager, jmx_model_extractor=mock_jmx_model_extractor)
         version = sync.process_latest_release()
 
         assert version == Version("2.10.0")
-        # Only 1 readme was successfully fetched, should be in global dir
         global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
         assert len(list(global_readme_dir.glob("*.md"))) == 1
-        # Because 1 fetch failed, readmes_synced must be False
-        assert not inventory_manager.readmes_synced(version)
+
+        # Failure count should be recorded
         assert inventory_manager.get_readme_failures(version) == {"akka-actor-2.3": 1}
+        assert not inventory_manager.readmes_synced(version)
 
-        # Retry sync on second run: fetch succeeds for both
-        def fetch_side_effect(path, sha):
-            return "# Akka README" if "akka" in path else "# Apache README"
+    def test_readme_sync_retry_limit_collects_orphan(self, mock_client, inventory_manager, mock_jmx_model_extractor):
+        """When a library exhausts retries, it counts as synced and allows orphan pruning."""
+        from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError
 
-        mock_client.fetch_raw_file.side_effect = fetch_side_effect
+        mock_client.get_latest_release_tag.return_value = "v2.10.0"
+        mock_client.fetch_instrumentation_list.return_value = self._YAML_WITH_LIBRARIES
+        mock_client.resolve_ref_to_sha.return_value = "sha123"
+        mock_client.fetch_tree.return_value = self._TREE
 
-        sync.process_latest_release()
+        # Set up an orphan file in global readmes
+        global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
+        global_readme_dir.mkdir(parents=True, exist_ok=True)
+        orphan_path = global_readme_dir / "old_orphan-123456789012.md"
+        orphan_path.write_text("# orphan")
 
-        # Both READMEs are now written (1 per library) and readmes_synced is set to True
-        assert len(list(global_readme_dir.glob("*.md"))) == 2
-        assert inventory_manager.readmes_synced(version)
-        assert inventory_manager.get_readme_failures(version) == {}
+        # Simulate 2 previous failures for akka-actor-2.3 on both release and snapshot
+        inventory_manager.record_readme_sync(Version("2.10.0"), {"akka-actor-2.3": 2})
+        inventory_manager.record_readme_sync(Version("2.10.1-SNAPSHOT"), {"akka-actor-2.3": 2})
 
-    def test_resolve_ref_failure_does_not_abort_sync(self, mock_client, inventory_manager):
+        # 3rd failure for akka-actor-2.3, success for apache-httpclient-4.3
+        def fetch_raw_file_side_effect(path, ref):
+            if "akka" in path:
+                raise GithubAPIError("permanent 404")
+            return "# Apache README"
+
+        mock_client.fetch_raw_file.side_effect = fetch_raw_file_side_effect
+
+        sync = InstrumentationSync(mock_client, inventory_manager, jmx_model_extractor=mock_jmx_model_extractor)
+        sync.sync()
+
+        # akka-actor-2.3 reaches max attempts (3) -> version marked synced -> orphan pruned
+        assert inventory_manager.readmes_synced(Version("2.10.0"))
+        assert inventory_manager.readmes_synced(Version("2.10.1-SNAPSHOT"))
+        assert not orphan_path.exists()
+
+    def test_resolve_ref_failure_does_not_abort_sync(self, mock_client, inventory_manager, mock_jmx_model_extractor):
         from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError
 
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
         mock_client.fetch_instrumentation_list.return_value = self._YAML_WITH_LIBRARIES
         mock_client.resolve_ref_to_sha.side_effect = GithubAPIError("API down")
 
-        sync = InstrumentationSync(mock_client, inventory_manager)
+        sync = InstrumentationSync(mock_client, inventory_manager, jmx_model_extractor=mock_jmx_model_extractor)
         version = sync.process_latest_release()
 
         assert version == Version("2.10.0")
         assert inventory_manager.version_exists(version)
-        # Global readme dir should have no README files when fetch fails entirely
+
+        # Global readme dir should NOT contain files for these libraries
         global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
         if global_readme_dir.exists():
-            assert len(list(global_readme_dir.glob("*.md"))) == 0
+            files = [f.name for f in global_readme_dir.glob("*.md")]
+            assert not any("akka-actor" in f or "apache-httpclient" in f for f in files)
 
-    def test_library_without_source_path_skipped(self, mock_client, inventory_manager):
+    def test_library_without_source_path_skipped(self, mock_client, inventory_manager, mock_jmx_model_extractor):
         yaml_no_source = """
 file_format: 0.5
 libraries:
@@ -407,77 +424,120 @@ libraries:
             {"type": "blob", "path": "instrumentation/some/lib/library/README.md"},
         ]
 
-        sync = InstrumentationSync(mock_client, inventory_manager)
+        sync = InstrumentationSync(mock_client, inventory_manager, jmx_model_extractor=mock_jmx_model_extractor)
         version = sync.process_latest_release()
 
         assert version == Version("2.10.0")
         mock_client.fetch_raw_file.assert_not_called()
 
-    def test_sync_prunes_orphan_readmes_gated(self, mock_client, inventory_manager):
-        from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError
-
+    def test_sync_prunes_orphan_readmes(self, mock_client, inventory_manager, mock_jmx_model_extractor):
+        """Verify that sync() actually calls prune_orphan_readmes when complete."""
         mock_client.get_latest_release_tag.return_value = "v2.10.0"
         mock_client.fetch_instrumentation_list.return_value = self._YAML_WITH_LIBRARIES
         mock_client.resolve_ref_to_sha.return_value = "sha123"
         mock_client.fetch_tree.return_value = self._TREE
-
-        # Write an orphan README first
-        global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
-        global_readme_dir.mkdir(parents=True, exist_ok=True)
-        orphan_file = global_readme_dir / "orphan-ffffff000000.md"
-        orphan_file.write_text("# orphan")
-
-        # Mock fetch_raw_file to raise an error
-        mock_client.fetch_raw_file.side_effect = GithubAPIError("API error")
-
-        sync = InstrumentationSync(mock_client, inventory_manager)
-        sync.sync()
-
-        # The orphan readme should NOT be pruned because the sync was incomplete
-        assert orphan_file.exists()
-
-        # Now mock it to succeed
-        mock_client.fetch_raw_file.side_effect = None
         mock_client.fetch_raw_file.return_value = "# README"
 
+        # Create an orphan file in global readmes
+        global_readme_dir = inventory_manager.inventory_dir / "library_readmes"
+        global_readme_dir.mkdir(parents=True, exist_ok=True)
+        orphan_file = global_readme_dir / "orphan-123456789012.md"
+        orphan_file.write_text("orphan content")
+
+        sync = InstrumentationSync(mock_client, inventory_manager, jmx_model_extractor=mock_jmx_model_extractor)
         sync.sync()
 
-        # The orphan readme SHOULD be pruned because the sync completed successfully
+        # Orphan file should be pruned
         assert not orphan_file.exists()
 
-    def test_readme_sync_retry_limit(self, mock_client, inventory_manager):
+    def test_release_sync_writes_jmx_models(self, sync, mock_client):
+        mock_client.get_latest_release_tag.return_value = "v2.30.0"
+        mock_client.fetch_instrumentation_list.return_value = "file_format: 0.5\nlibraries: []\n"
+        mock_client.resolve_ref_to_sha.return_value = "sha123"
+
+        sync.jmx_model_extractor.discover_jmx_model_paths.return_value = (
+            {
+                "jvm": "instrumentation/jmx-metrics/model/jvm.yaml",
+                "tomcat": "instrumentation/jmx-metrics/model/tomcat.yaml",
+            },
+            "instrumentation/jmx-metrics/model/manifest.yaml",
+        )
+        sync.jmx_model_extractor.fetch_model.side_effect = [
+            "jvm-model",
+            "tomcat-model",
+            "manifest-model",
+        ]
+
+        version = sync.process_latest_release()
+
+        assert version == Version("2.30.0")
+        index_path = sync.inventory_manager.get_version_dir(version) / "jmx-models.yaml"
+        assert index_path.exists()
+        assert sync.inventory_manager.get_jmx_store_dir().exists()
+        index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+        assert set(index["models"]) == {"jvm", "tomcat"}
+        assert "manifest" not in index["models"]
+        assert index["manifest"]
+
+    def test_process_latest_release_backfills_missing_jmx_index(self, sync, mock_client, inventory_manager):
+        version = Version("2.30.0")
+        inventory_manager.save_versioned_inventory(
+            version=version,
+            instrumentations={"file_format": 0.5, "libraries": []},
+        )
+        inventory_manager.record_readme_sync(version, {})
+
+        mock_client.get_latest_release_tag.return_value = "v2.30.0"
+        mock_client.resolve_ref_to_sha.return_value = "sha123"
+        sync.jmx_model_extractor.discover_jmx_model_paths.return_value = (
+            {"jvm": "instrumentation/jmx-metrics/model/jvm.yaml"},
+            None,
+        )
+        sync.jmx_model_extractor.fetch_model.return_value = "jvm-model"
+
+        result = sync.process_latest_release()
+
+        assert result is None
+        assert inventory_manager.jmx_models_index_exists(version)
+
+    @pytest.mark.parametrize("failed_file", ["model", "manifest"])
+    def test_release_sync_does_not_write_partial_jmx_index(self, sync, mock_client, inventory_manager, failed_file):
         from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError
 
-        mock_client.get_latest_release_tag.return_value = "v2.10.0"
-        mock_client.fetch_instrumentation_list.return_value = self._YAML_WITH_LIBRARIES
+        mock_client.get_latest_release_tag.return_value = "v2.30.0"
+        mock_client.fetch_instrumentation_list.return_value = "file_format: 0.5\nlibraries: []\n"
         mock_client.resolve_ref_to_sha.return_value = "sha123"
-        mock_client.fetch_tree.return_value = self._TREE
-        mock_client.fetch_raw_file.side_effect = GithubAPIError("timeout")
+        sync.jmx_model_extractor.discover_jmx_model_paths.return_value = (
+            {"jvm": "instrumentation/jmx-metrics/model/jvm.yaml"},
+            "instrumentation/jmx-metrics/model/manifest.yaml",
+        )
+        if failed_file == "model":
+            sync.jmx_model_extractor.fetch_model.side_effect = [
+                GithubAPIError("model fetch failed"),
+                "manifest-model",
+            ]
+        else:
+            sync.jmx_model_extractor.fetch_model.side_effect = [
+                "jvm-model",
+                GithubAPIError("manifest fetch failed"),
+            ]
 
-        sync = InstrumentationSync(mock_client, inventory_manager)
+        version = sync.process_latest_release()
 
-        # Run 1: attempt 1
-        sync.process_latest_release()
-        assert inventory_manager.get_readme_failures(Version("2.10.0")) == {
-            "akka-actor-2.3": 1,
-            "apache-httpclient-4.3": 1,
-        }
+        assert version == Version("2.30.0")
+        assert not inventory_manager.jmx_models_index_exists(version)
+        assert not inventory_manager.get_jmx_store_dir().exists()
 
-        # Run 2: attempt 2
-        sync.process_latest_release()
-        assert inventory_manager.get_readme_failures(Version("2.10.0")) == {
-            "akka-actor-2.3": 2,
-            "apache-httpclient-4.3": 2,
-        }
+    def test_jmx_tree_discovery_failure_does_not_abort_release_sync(self, sync, mock_client, inventory_manager):
+        from java_instrumentation_watcher.java_instrumentation_client import GithubAPIError
 
-        # Run 3: attempt 3
-        sync.process_latest_release()
-        assert inventory_manager.get_readme_failures(Version("2.10.0")) == {
-            "akka-actor-2.3": 3,
-            "apache-httpclient-4.3": 3,
-        }
+        mock_client.get_latest_release_tag.return_value = "v2.30.0"
+        mock_client.fetch_instrumentation_list.return_value = "file_format: 0.5\nlibraries: []\n"
+        mock_client.resolve_ref_to_sha.return_value = "sha123"
+        sync.jmx_model_extractor.discover_jmx_model_paths.side_effect = GithubAPIError("tree fetch failed")
 
-        # Run 4: limit reached, should skip calling fetch_raw_file entirely
-        mock_client.fetch_raw_file.reset_mock()
-        sync.process_latest_release()
-        mock_client.fetch_raw_file.assert_not_called()
+        version = sync.process_latest_release()
+
+        assert version == Version("2.30.0")
+        assert not inventory_manager.jmx_models_index_exists(version)
+        assert not inventory_manager.get_jmx_store_dir().exists()

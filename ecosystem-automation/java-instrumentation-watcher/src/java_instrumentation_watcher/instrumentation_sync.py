@@ -23,12 +23,12 @@ from semantic_version import Version
 from .instrumentation_parser import parse_instrumentation_yaml
 from .inventory_manager import InventoryManager
 from .java_instrumentation_client import GithubAPIError, JavaInstrumentationClient
+from .jmx_model_extractor import JmxModelExtractor
 from .readme_extractor import ReadmeExtractor
 
 logger = logging.getLogger(__name__)
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-_MAX_README_FETCH_ATTEMPTS = 3
 
 
 class InstrumentationSync:
@@ -39,16 +39,21 @@ class InstrumentationSync:
         client: JavaInstrumentationClient,
         inventory_manager: InventoryManager,
         readme_extractor: ReadmeExtractor | None = None,
+        jmx_model_extractor: JmxModelExtractor | None = None,
     ):
         """
         Args:
             client: GitHub API client for fetching data
             inventory_manager: Inventory manager for storing data
             readme_extractor: README extractor (defaults to ReadmeExtractor(client))
+            jmx_model_extractor: JMX model extractor (defaults to JmxModelExtractor(client))
         """
         self.client = client
         self.inventory_manager = inventory_manager
         self.readme_extractor = readme_extractor or ReadmeExtractor(client)
+        self.jmx_model_extractor = jmx_model_extractor or JmxModelExtractor(client)
+        # Set to False in _sync_library_readmes when retryable failures occur or
+        # discovery fails. Reset to True at the start of each sync() run.
         self._readme_sync_complete = True
 
     def sync(self) -> dict[str, Any]:
@@ -58,17 +63,17 @@ class InstrumentationSync:
         This will:
         1. Process the latest release (if new)
         2. Update the snapshot from main branch
-        3. Prune orphaned README files from the global library_readmes/ directory
+        3. Prune orphaned READMEs (only when README sync was complete this run)
 
         Returns:
             Summary dictionary with processing results
         """
+        self._readme_sync_complete = True  # reset per run
+
         summary = {
             "new_release": None,
             "snapshot_updated": None,
         }
-
-        self._readme_sync_complete = True
 
         logger.info("Checking for latest release...")
         new_release = self.process_latest_release()
@@ -88,7 +93,7 @@ class InstrumentationSync:
             if pruned > 0:
                 logger.info(f"  Pruned {pruned} orphaned README file(s) from global library_readmes/")
         else:
-            logger.warning("  Skipped pruning orphaned README files because readme sync was incomplete")
+            logger.warning("  Skipping orphan README prune: README sync was incomplete this run")
 
         return summary
 
@@ -108,10 +113,9 @@ class InstrumentationSync:
             if not self.inventory_manager.readmes_synced(version):
                 instrumentations = self.inventory_manager.load_versioned_inventory(version)
                 self._sync_library_readmes(version, tag_string, instrumentations)
-                self.inventory_manager.save_versioned_inventory(
-                    version=version,
-                    instrumentations=instrumentations,
-                )
+                self.inventory_manager.save_versioned_inventory(version=version, instrumentations=instrumentations)
+            if not self.inventory_manager.jmx_models_index_exists(version):
+                self._sync_jmx_models(version, tag_string)
             return None
 
         logger.info(f"  Fetching instrumentation list for {tag_string}...")
@@ -123,6 +127,7 @@ class InstrumentationSync:
             version=version,
             instrumentations=instrumentations,
         )
+        self._sync_jmx_models(version, tag_string)
 
         return version
 
@@ -178,13 +183,19 @@ class InstrumentationSync:
         ref: str,
         instrumentations: dict,
     ) -> bool:
-        """Best-effort: fetch library READMEs at `ref` and persist content-addressed.
+        """Best-effort: fetch library READMEs at `ref` and persist content-addressed
+        in the global library_readmes/ directory.
 
-        Per-file failures are logged and skipped; tree-discovery failure aborts
-        only this step, never the sync.
+        Per-file failures are tracked with a retry counter (MAX_README_FETCH_ATTEMPTS).
+        Libraries that exhaust their retries are given up on and do not block the
+        'synced' flag. Tree-discovery failure aborts only this step, never the sync.
+
+        Sets self._readme_sync_complete = False when any retryable failures remain,
+        to prevent prune_orphan_readmes from running on an incomplete registry state.
 
         Returns:
-            True if all READMEs were fetched without error, False otherwise.
+            True if all READMEs were successfully fetched (or given up on), False if
+            any retryable failures remain.
         """
         try:
             sha = ref if _SHA_RE.match(ref) else self.client.resolve_ref_to_sha(ref)
@@ -206,7 +217,7 @@ class InstrumentationSync:
         }
 
         prev_failures = self.inventory_manager.get_readme_failures(version)
-        current_failures = {}
+        current_failures: dict[str, int] = {}
         fetched: list[tuple[str, str]] = []
 
         for source_path, blob_path in discovered.items():
@@ -215,9 +226,14 @@ class InstrumentationSync:
                 continue
 
             attempts = prev_failures.get(name, 0)
-            if attempts >= _MAX_README_FETCH_ATTEMPTS:
+            if attempts >= self.inventory_manager.MAX_README_FETCH_ATTEMPTS:
+                # Library has been given up on; carry the count forward but don't retry.
                 current_failures[name] = attempts
-                logger.info("  Skipping README for %s: reached max fetch attempts (%d)", name, attempts)
+                logger.info(
+                    "  Skipping README for %s: reached max fetch attempts (%d)",
+                    name,
+                    attempts,
+                )
                 continue
 
             try:
@@ -231,7 +247,7 @@ class InstrumentationSync:
                     name,
                     e,
                     new_attempts,
-                    _MAX_README_FETCH_ATTEMPTS,
+                    self.inventory_manager.MAX_README_FETCH_ATTEMPTS,
                 )
 
         written_map = self.inventory_manager.save_library_readmes(fetched)
@@ -244,8 +260,53 @@ class InstrumentationSync:
 
         self.inventory_manager.record_readme_sync(version, current_failures)
 
-        if current_failures:
+        # Retryable failures keep _readme_sync_complete False to gate pruning.
+        retryable = any(count < self.inventory_manager.MAX_README_FETCH_ATTEMPTS for count in current_failures.values())
+        if retryable:
             self._readme_sync_complete = False
             return False
 
         return True
+
+    def _sync_jmx_models(self, version: Version, ref: str) -> None:
+        """Best-effort: fetch JMX weaver model files and write version index."""
+        try:
+            sha = ref if _SHA_RE.match(ref) else self.client.resolve_ref_to_sha(ref)
+            discovered_models, manifest_path = self.jmx_model_extractor.discover_jmx_model_paths(sha)
+        except GithubAPIError as e:
+            logger.warning(f"  JMX model discovery failed for {ref}: {e}")
+            return
+
+        if not discovered_models and manifest_path is None:
+            logger.info(f"  No JMX weaver model files found at {ref}")
+            return
+
+        models: dict[str, str] = {}
+        fetch_failed = False
+        for target_system, path in sorted(discovered_models.items()):
+            try:
+                models[target_system] = self.jmx_model_extractor.fetch_model(path, sha)
+            except GithubAPIError as e:
+                logger.warning(f"  JMX model fetch failed for {target_system}: {e}")
+                fetch_failed = True
+
+        manifest_content = None
+        if manifest_path is not None:
+            try:
+                manifest_content = self.jmx_model_extractor.fetch_model(manifest_path, sha)
+            except GithubAPIError as e:
+                logger.warning(f"  JMX manifest fetch failed: {e}")
+                fetch_failed = True
+
+        if fetch_failed:
+            logger.warning(f"  JMX model index not written for v{version}; fetch incomplete")
+            return
+
+        written_models, manifest_file = self.inventory_manager.save_jmx_models_index(
+            version=version,
+            models=models,
+            manifest=manifest_content,
+        )
+
+        suffix = " and manifest" if manifest_file else ""
+        logger.info(f"  Stored {len(written_models)} JMX model file(s){suffix} for v{version}")
