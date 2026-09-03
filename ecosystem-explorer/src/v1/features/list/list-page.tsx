@@ -277,6 +277,7 @@ export function CollectorListPageV1() {
               onChange={updateFilters}
               versions={allVersions}
               counts={counts}
+              distributions={Object.keys(counts.distributions ?? {})}
               isOpen={drawerOpen}
               onClose={() => setDrawerOpen(false)}
             />

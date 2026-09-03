@@ -394,6 +394,7 @@ function FacetPanelShowcase() {
           signals: { traces: 112, metrics: 96, logs: 74, baggage: 8 },
           distributions: { core: 41, contrib: 182 },
         }}
+        distributions={["core", "contrib"]}
       />
     </div>
   );
